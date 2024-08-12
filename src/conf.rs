@@ -25,7 +25,7 @@ pub fn build_xmatch_configs(conf: &Config) -> Vec<types::CatalogXmatchConfig> {
 }
 
 pub async fn build_db(conf: &Config) -> mongodb::Database {
-    let db_conf = conf.get_table("db").unwrap();
+    let db_conf = conf.get_table("database").unwrap();
 
     let host = {
         if let Some(host) = db_conf.get("host") {
@@ -51,7 +51,99 @@ pub async fn build_db(conf: &Config) -> mongodb::Database {
         }
     };
 
-    let uri = format!("mongodb://{}:{}", host, port);
+    let max_pool_size = {
+        if let Some(max_pool_size) = db_conf.get("max_pool_size") {
+            Some(max_pool_size.clone().into_int().unwrap() as u32)
+        } else {
+            None
+        }
+    };
+
+    let replica_set = {
+        if let Some(replica_set) = db_conf.get("replica_set") {
+            // could be a string, or could be None
+            if replica_set.clone().into_string().is_ok() {
+                Some(replica_set.clone().into_string().unwrap())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    let username = {
+        if let Some(username) = db_conf.get("username") {
+            if username.clone().into_string().is_ok() {
+                Some(username.clone().into_string().unwrap())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    let password = {
+        if let Some(password) = db_conf.get("password") {
+            if password.clone().into_string().is_ok() {
+                Some(password.clone().into_string().unwrap())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    // verify that if username or password is set, both are set
+    if username.is_some() && password.is_none() {
+        panic!("username is set but password is not set");
+    }
+
+    if password.is_some() && username.is_none() {
+        panic!("password is set but username is not set");
+    }
+
+    // if srv is True, the uri will be mongodb+srv://
+    let prefix = {
+        if let Some(srv) = db_conf.get("srv") {
+            if srv.clone().into_bool().unwrap() {
+                "mongodb+srv://"
+            } else {
+                "mongodb://"
+            }
+        } else {
+            "mongodb://"
+        }
+    };
+
+    let mut uri = prefix.to_string();
+
+    if let Some(username) = username {
+        uri.push_str(&username);
+        uri.push_str(":");
+        uri.push_str(&password.unwrap());
+        uri.push_str("@");
+    }
+
+    uri.push_str(&host);
+    uri.push_str(":");
+    uri.push_str(&port.to_string());
+
+    uri.push_str("/");
+    uri.push_str(&name);
+
+    uri.push_str("?directConnection=true");
+
+    if let Some(replica_set) = replica_set {
+        uri.push_str(&format!("&replicaSet={}", replica_set));
+    }
+
+    if let Some(max_pool_size) = max_pool_size {
+        uri.push_str(&format!("&maxPoolSize={}", max_pool_size));
+    }
+
     let client_mongo = mongodb::Client::with_uri_str(&uri).await.unwrap();
     let db = client_mongo.database(&name);
     db

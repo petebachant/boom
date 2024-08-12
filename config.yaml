@@ -1,7 +1,12 @@
-db:
+database:
   host: localhost
   port: 27017
   name: zvar
+  max_pool_size: 200
+  replica_set: null
+  username: null
+  password: null
+  srv: false
 crossmatch:
   - catalog: PS1_DR1
     radius: 2.0 # 2 arcseconds
