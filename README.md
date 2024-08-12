@@ -52,8 +52,9 @@ For now we support running boom on MacOS and Linux. You'll need:
 
 - First, make sure that `Redis`/`Valkey` and `MongoDB` are running. Then, you can start the **fake** kafka consumer (that reads alerts from a file instead of a kafka topic) with:
     ```bash
-    cargo run --bin fake_kafka_consumer --release
+    cargo run --bin fake_kafka_consumer <date_in_YYYMMDD_format>
     ```
+    Where `<date_in_YYYMMDD_format>` is the date of the alerts you want to read. We suggest using a night with a very small number of alerts to just get the code running, like `202406171` for example. The script will take care of downloading the alerts from the ZTF IPAC server, and writing them to `data/alerts/ztf/YYYYMMDD/*.avro`.
     This will start reading alerts from the file `data/alerts.json` and sending them to the `Valkey` instance's `alertpacketqueue` list.
 
 - Next, you can start the real-time processing system with:
@@ -64,8 +65,8 @@ For now we support running boom on MacOS and Linux. You'll need:
 
 - Finally, you can start the real-time ML worker with:
     ```bash
-    python3 -m pip install -r requirements.txt
-    python3 -m src.ml_worker
+    pip install -r requirements.txt
+    python py_workers/ml_worker.py
     ```
     This will start reading alerts from the `Valkey` instance's `alertclassifierqueue` list, and process the alerts with the ML classifiers. You can start multiple instances of this worker to parallelize the processing (in another terminal for example). Essentially, this gets up to 1000 `candid`s at once, grabs the alerts from the DB, and runs the ML classifiers on them, in batches of up to 1000 alerts. Then, it stores the results in the DB.
 

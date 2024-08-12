@@ -120,6 +120,8 @@ pub async fn build_db(conf: &Config) -> mongodb::Database {
 
     let mut uri = prefix.to_string();
 
+    let using_auth = username.is_some() && password.is_some();
+
     if let Some(username) = username {
         uri.push_str(&username);
         uri.push_str(":");
@@ -135,6 +137,10 @@ pub async fn build_db(conf: &Config) -> mongodb::Database {
     uri.push_str(&name);
 
     uri.push_str("?directConnection=true");
+
+    if using_auth {
+        uri.push_str(&format!("&authSource=admin"));
+    }
 
     if let Some(replica_set) = replica_set {
         uri.push_str(&format!("&replicaSet={}", replica_set));

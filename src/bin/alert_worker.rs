@@ -31,11 +31,14 @@ async fn main() {
                     }
                     Ok(None) => {
                         println!("Alert already exists");
+                        // remove the alert from the queue
+                        con.lrem::<&str, Vec<u8>, isize>("alertpacketqueuetemp", 1, value[0].clone()).await.unwrap();
                     }
                     Err(e) => {
                         println!("Error processing alert: {}, requeueing", e);
-                        // put it back in the queue, to the left (pop from the right, push to the left)
-                        con.rpoplpush::<&str, Vec<u8>, isize>("alertpacketqueuetemp", value[0].clone()).await.unwrap();
+                        // put it back in the alertpacketqueue, to the left (pop from the right, push to the left)
+                        con.lrem::<&str, Vec<u8>, isize>("alertpacketqueuetemp", 1, value[0].clone()).await.unwrap();
+                        con.lpush::<&str, Vec<u8>, isize>("alertpacketqueue", value[0].clone()).await.unwrap();
                     }
                 }
 

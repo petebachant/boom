@@ -1,13 +1,16 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import load_model
-from astropy.io import fits
 import gzip
 import io
-from pymongo import MongoClient
-import redis
 import time
+
+import numpy as np
+import redis
+import tensorflow as tf
+from astropy.io import fits
 from pymongo import UpdateOne
+from tensorflow.keras.models import load_model
+
+from config import load_config
+from mongo import db_from_config
 
 tf.config.optimizer.set_jit(True)
 
@@ -84,67 +87,64 @@ class ACAI_H_AlertClassifierBulk(ACAI_H_AlertClassifier):
         
         return self.model([triplets, metadata])
 
+if __name__ == "__main__":
+    config = load_config(["config.yaml"])
 
-# Load the model
-model_path = "data/models/acai_h_20240731_130724.keras"
-bulk_classifier = ACAI_H_AlertClassifierBulk(model_path)
+    # Load the model
+    model_path = "data/models/acai_h_20240731_130724.keras"
+    bulk_classifier = ACAI_H_AlertClassifierBulk(model_path)
 
-# Connect to MongoDB
-client = MongoClient('localhost', 27017)
-db = client.zvar
-alerts_collection = db.alerts
+    # Connect to MongoDB
+    db = db_from_config(config)
+    alerts_collection = db.alerts
 
-# Connect to Redis
-r = redis.Redis(host='localhost', port=6379, db=0)
+    # Connect to Redis
+    r = redis.Redis(host='localhost', port=6379, db=0)
 
-# Process 1000 alerts at a time, running inference in batches
-while True:
-    start = time.time()
+    # Process 1000 alerts at a time, running inference in batches
+    while True:
+        start = time.time()
 
-    # Retrieve 1000 candids from Redis
-    candids = r.rpop('alertclassifierqueue', 1000)
-    if candids is None:
-        print("No values in Redis")
-        time.sleep(2)
-        continue
-    candids = [int(candid) for candid in candids]
-    print(f"Retrieved {len(candids)} values from Redis")
-
-
-    # Query MongoDB for the corresponding alerts
-    alerts = alerts_collection.find({"candid": {"$in": candids}})
-    alerts = list(alerts)
-
-    if not alerts:
-        print("No alerts found")
-        continue
-
-    # handle missing alerts in the database
-    missing_candids = set(candids) - {alert["candid"] for alert in alerts}
-    if missing_candids:
-        print(f"Missing alerts for candid(s): {missing_candids}")
-        candids = list(set(candids) - missing_candids)
-        # push the missing candids back to the left of the queue
-        r.lpush('alertclassifierqueue', *missing_candids)
-
-    # Run inference on the alerts
-    probabilities = bulk_classifier.predict_bulk(alerts)
-
-    # Write the results back to MongoDB
-    bulk_updates = [
-        UpdateOne(
-            {"candid": alert["candid"]},
-            {"$set": {
-                "classifications.acai_h": probability.numpy().item(),
-                "classifications.acai_h_version": "20240731_130724",
-            }}
-        )
-        for alert, probability in zip(alerts, probabilities)
-    ]
-    result = alerts_collection.bulk_write(bulk_updates)
-    print(f"Total query + inference + write time: {time.time() - start} seconds")
-    time.sleep(1)
+        # Retrieve 1000 candids from Redis
+        candids = r.rpop('alertclassifierqueue', 1000)
+        if candids is None:
+            print("No values in Redis")
+            time.sleep(2)
+            continue
+        candids = [int(candid) for candid in candids]
+        print(f"Retrieved {len(candids)} values from Redis")
 
 
+        # Query MongoDB for the corresponding alerts
+        alerts = alerts_collection.find({"candid": {"$in": candids}})
+        alerts = list(alerts)
 
+        if not alerts:
+            print("No alerts found")
+            continue
 
+        # handle missing alerts in the database
+        missing_candids = set(candids) - {alert["candid"] for alert in alerts}
+        if missing_candids:
+            print(f"Missing alerts for candid(s): {missing_candids}")
+            candids = list(set(candids) - missing_candids)
+            # push the missing candids back to the left of the queue
+            r.lpush('alertclassifierqueue', *missing_candids)
+
+        # Run inference on the alerts
+        probabilities = bulk_classifier.predict_bulk(alerts)
+
+        # Write the results back to MongoDB
+        bulk_updates = [
+            UpdateOne(
+                {"candid": alert["candid"]},
+                {"$set": {
+                    "classifications.acai_h": probability.numpy().item(),
+                    "classifications.acai_h_version": "20240731_130724",
+                }}
+            )
+            for alert, probability in zip(alerts, probabilities)
+        ]
+        result = alerts_collection.bulk_write(bulk_updates)
+        print(f"Total query + inference + write time: {time.time() - start} seconds")
+        time.sleep(1)

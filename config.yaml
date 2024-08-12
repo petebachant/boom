@@ -4,8 +4,8 @@ database:
   name: zvar
   max_pool_size: 200
   replica_set: null
-  username: null
-  password: null
+  username: mongoadmin
+  password: mongoadminsecret
   srv: false
 crossmatch:
   - catalog: PS1_DR1
