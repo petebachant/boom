@@ -2,11 +2,11 @@ hello: world
 database:
   host: localhost
   port: 27017
-  name: boom_test
+  name: boom
   max_pool_size: 200
   replica_set: null
-  username: null
-  password: null
+  username: mongoadmin
+  password: mongoadminsecret
   srv: false
 crossmatch:
   - catalog: PS1_DR1
