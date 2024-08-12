@@ -1,7 +1,7 @@
 database:
   host: localhost
   port: 27017
-  name: zvar
+  name: boom
   max_pool_size: 200
   replica_set: null
   username: mongoadmin
