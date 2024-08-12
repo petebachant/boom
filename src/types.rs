@@ -910,11 +910,6 @@ impl AlertNoHistory {
         doc.insert("coordinates", coordinates);
         doc
     }
-
-    // return a tuple with the ra and dec of the alert, with ra - 180
-    pub fn get_ra_dec_geojson(&self) -> (f64, f64) {
-        (self.candidate.ra - 180.0, self.candidate.dec)
-    }
 }
 
 impl PrvCandidate {
@@ -949,6 +944,25 @@ impl FpHist {
 pub enum DistanceUnit {
     Redshift, // use the redshift to compute the distance
     Mpc // use the distance in Mpc
+}
+
+impl DistanceUnit {
+    pub fn to_string(&self) -> String {
+        match self {
+            DistanceUnit::Redshift => "redshift".to_string(),
+            DistanceUnit::Mpc => "Mpc".to_string()
+        }
+    }
+
+    pub fn from_str(s: &str) -> DistanceUnit {
+        match s {
+            "redshift" => DistanceUnit::Redshift,
+            "z" => DistanceUnit::Redshift,
+            "Mpc" => DistanceUnit::Mpc,
+            "mpc" => DistanceUnit::Mpc,
+            _ => panic!("Invalid distance unit")
+        }
+    }
 }
 
 #[derive(Debug)]    
@@ -1064,11 +1078,28 @@ impl CatalogXmatchConfig {
             projection_doc.insert(key, value);
         }
 
-        let distance_unit = match distance_unit.as_deref() {
-            Some("redshift") => Some(DistanceUnit::Redshift),
-            Some("Mpc") => Some(DistanceUnit::Mpc),
-            _ => None
+        let distance_unit = match distance_unit {
+            Some(unit) => Some(DistanceUnit::from_str(&unit)),
+            None => None
         };
+
+        if use_distance {
+            if distance_key.is_none() {
+                panic!("must provide a distance_key if use_distance is true");
+            }
+
+            if distance_unit.is_none() {
+                panic!("must provide a distance_unit if use_distance is true");
+            }
+
+            if distance_max.is_none() {
+                panic!("must provide a distance_max if use_distance is true");
+            }
+
+            if distance_max_near.is_none() {
+                panic!("must provide a distance_max_near if use_distance is true");
+            }
+        }
 
         CatalogXmatchConfig::new(
             &catalog,
