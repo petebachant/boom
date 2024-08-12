@@ -13,6 +13,8 @@ BOOM's nightly processing pipeline is highly modular and multi-language, with mo
 - Running ML classifiers on the alerts and storing the results in the database (implemented in `Python`).
 - Running user-defined filters on the alerts and storing the results in the database (implemented in `Python` and/or `Rust`).
 
+**Note: The API and filtering system(s) are still under development.**
+
 ## Installation
 
 For now we support running boom on MacOS and Linux. You'll need:
@@ -24,33 +26,14 @@ For now we support running boom on MacOS and Linux. You'll need:
     - `Rust` (a systems programming language), any version `>= 1.55.0` should work.
     - `Python` (a high-level programming language), any version `>= 3.10` should work.
 
-**The API and filtering system(s) are still under development.**
-
-#### Comments/Suggestions:
-
-- For `Redis` or `Valkey`, you can use a local installation or a docker container. Here's how to start a `Valkey` docker container:
-    ```bash
-    docker run -p 6379:6379 --rm valkey/valkey:7.2.6
-    ```
-    To run it detached, just add the `-d` flag:
-    ```bash
-    docker run -p 6379:6379 --rm -d valkey/valkey:7.2.6
-    ```
-
-- For `MongoDB`, you can use a local installation or a docker container. Here's how to start a `MongoDB` docker container:
-    ```bash
-    docker run -p 27017:27017 --rm mongo:5.0.3
-    ```
-    To run it detached, just add the `-d` flag:
-    ```bash
-    docker run -p 27017:27017 --rm -d mongo:5.0.3
-    ```
-
-**Note:** Do keep in mind that these will not have a persistent volume, so you'll lose all data when the container is stopped. To add a persistent volume (and handling multiple docker containers in general), we recommend using `docker-compose`.
+To run `Valkey` and `MongoDB` in docker, we provide a `docker-compose.yaml` file in the repository. You can start both services with:
+```bash
+docker-compose up -d
+```
 
 ## Usage
 
-- First, make sure that `Redis`/`Valkey` and `MongoDB` are running. Then, you can start the **fake** kafka consumer (that reads alerts from a file instead of a kafka topic) with:
+- First, make sure that `Redis`/`Valkey` and `MongoDB` are running. You can easily run them in docker with the command above. Then, you can start the **fake** kafka consumer (that reads alerts from a file instead of a kafka topic) with:
     ```bash
     cargo run --bin fake_kafka_consumer <date_in_YYYMMDD_format>
     ```
