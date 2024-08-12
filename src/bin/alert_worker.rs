@@ -7,10 +7,8 @@ use boom::alert;
 async fn main() {
     let config_file = conf::load_config("./config.yaml").unwrap();    
 
-    let xmatch_configs = conf::build_xmatch_configs(config_file);
-
-    let client_mongo = mongodb::Client::with_uri_str("mongodb://localhost:27017").await.unwrap();
-    let db = client_mongo.database("zvar");
+    let xmatch_configs = conf::build_xmatch_configs(&config_file);
+    let db = conf::build_db(&config_file).await;
 
     let client_redis = redis::Client::open(
         "redis://localhost:6379".to_string()

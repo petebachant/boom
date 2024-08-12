@@ -26,7 +26,7 @@ fn test_build_xmatch_configs() {
     let crossmatches = conf.get_array("crossmatch").unwrap();
     assert_eq!(crossmatches.len(), 9);
 
-    let catalog_xmatch_configs = conf::build_xmatch_configs(conf);
+    let catalog_xmatch_configs = conf::build_xmatch_configs(&conf);
 
     assert_eq!(catalog_xmatch_configs.len(), 9);
 
@@ -46,4 +46,14 @@ fn test_build_xmatch_configs() {
     assert_eq!(projection.get("coordinates.radec_str").unwrap().as_i64().unwrap(), 1);
     assert_eq!(projection.get("gMeanPSFMag").unwrap().as_i64().unwrap(), 1);
     assert_eq!(projection.get("gMeanPSFMagErr").unwrap().as_i64().unwrap(), 1);
+}
+
+#[tokio::test]
+async fn test_build_db() {
+    let conf = conf::load_config("tests/data/config.test.yaml");
+    let conf = conf.unwrap();
+
+    let db = conf::build_db(&conf).await;
+
+    let _collections = db.list_collection_names().await.unwrap();
 }
