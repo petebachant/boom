@@ -1,8 +1,8 @@
-use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::config::ClientConfig;
+use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::message::Message;
-use uuid::Uuid;
 use redis::AsyncCommands;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut con = client.get_multiplexed_async_connection().await.unwrap();
 
     // empty the queue
-    con.del::<&str, usize>("myqueue").await.unwrap();
+    con.del::<&str, usize>("alertpacketqueue").await.unwrap();
 
     let mut total = 0;
     // generate a random group id every time
@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match message {
             Some(Ok(msg)) => {
                 let payload = msg.payload().unwrap();
-                con.rpush::<&str, Vec<u8>, usize>("myqueue", payload.to_vec()).await.unwrap();
+                con.rpush::<&str, Vec<u8>, usize>("alertpacketqueue", payload.to_vec()).await.unwrap();
                 total += 1;
                 if total % 1000 == 0 {
                     println!("Pushed {} items since {:?}", total, start.elapsed());

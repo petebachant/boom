@@ -87,21 +87,22 @@ class ACAI_H_AlertClassifierBulk(ACAI_H_AlertClassifier):
 
 # Load the model
 model_path = "data/models/acai_h_20240731_130724.keras"
-classifier = ACAI_H_AlertClassifier(model_path)
+bulk_classifier = ACAI_H_AlertClassifierBulk(model_path)
 
-# query a random alert in MongoDB from the zvar database and the alerts collection
+# Connect to MongoDB
 client = MongoClient('localhost', 27017)
 db = client.zvar
 alerts_collection = db.alerts
 
-
-# now try reading up to 10 values from redis, from a queue called myclassifier
-
+# Connect to Redis
 r = redis.Redis(host='localhost', port=6379, db=0)
 
+# Process 1000 alerts at a time, running inference in batches
 while True:
     start = time.time()
-    candids = r.lpop('myclassifier', 1000)
+
+    # Retrieve 1000 candids from Redis
+    candids = r.rpop('alertclassifierqueue', 1000)
     if candids is None:
         print("No values in Redis")
         time.sleep(2)
@@ -109,6 +110,8 @@ while True:
     candids = [int(candid) for candid in candids]
     print(f"Retrieved {len(candids)} values from Redis")
 
+
+    # Query MongoDB for the corresponding alerts
     alerts = alerts_collection.find({"candid": {"$in": candids}})
     alerts = list(alerts)
 
@@ -116,15 +119,18 @@ while True:
         print("No alerts found")
         continue
 
+    # handle missing alerts in the database
     missing_candids = set(candids) - {alert["candid"] for alert in alerts}
     if missing_candids:
         print(f"Missing alerts for candid(s): {missing_candids}")
         candids = list(set(candids) - missing_candids)
+        # push the missing candids back to the left of the queue
+        r.lpush('alertclassifierqueue', *missing_candids)
 
-    bulk_classifier = ACAI_H_AlertClassifierBulk(model_path)
-
+    # Run inference on the alerts
     probabilities = bulk_classifier.predict_bulk(alerts)
 
+    # Write the results back to MongoDB
     bulk_updates = [
         UpdateOne(
             {"candid": alert["candid"]},
@@ -135,11 +141,8 @@ while True:
         )
         for alert, probability in zip(alerts, probabilities)
     ]
-
     result = alerts_collection.bulk_write(bulk_updates)
-
     print(f"Total query + inference + write time: {time.time() - start} seconds")
-
     time.sleep(1)
 
 

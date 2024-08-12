@@ -1,6 +1,8 @@
-use mongodb::bson::to_document;
-use mongodb::bson::doc;
+use apache_avro::from_value;
+use apache_avro::Reader;
 use config::Value;
+use mongodb::bson::doc;
+use mongodb::bson::to_document;
 
 use crate::coordinates;
 
@@ -875,6 +877,20 @@ impl Alert {
             self.fp_hists,
         )
     }
+
+    pub fn from_avro_bytes(avro_bytes: Vec<u8>) -> Result<Alert, Box<dyn std::error::Error>> {
+        let reader = match Reader::new(&avro_bytes[..]) {
+            Ok(reader) => reader,
+            Err(e) => {
+                println!("Error creating avro reader: {}", e);
+                return Err(Box::new(e));
+            }
+        };
+        
+        let value = reader.map(|x| x.unwrap()).next().unwrap();
+        let alert: Alert = from_value(&value).unwrap();
+        Ok(alert)
+    }
 }
 
 impl AlertNoHistory {
@@ -1056,7 +1072,7 @@ impl CatalogXmatchConfig {
 
         CatalogXmatchConfig::new(
             &catalog,
-            radius, // convert arcsec to radians
+            radius,
             projection_doc,
             use_distance,
             distance_key,

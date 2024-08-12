@@ -1,6 +1,4 @@
-use rsgen_avro::{Source, Generator};
-
-// we want to read the schemas from schema/ztf/ directory, and generate the types
+use rsgen_avro::{Generator, Source};
 
 fn main() {
     let files = std::fs::read_dir("schema/ztf").unwrap();

@@ -12,6 +12,7 @@ pub fn radec2lb(ra: f64, dec: f64) -> (f64, f64) {
         ra_rad.sin() * dec_rad.cos(),
         dec_rad.sin(),
     ];
+    // next do a dot product of RGE and u
     let ug = vec![
         RGE[0][0] * u[0] + RGE[0][1] * u[1] + RGE[0][2] * u[2],
         RGE[1][0] * u[0] + RGE[1][1] * u[1] + RGE[1][2] * u[2],

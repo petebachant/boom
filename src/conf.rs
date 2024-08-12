@@ -1,9 +1,8 @@
 use config::Config;
-use config::File;
 use config::ConfigError;
+use config::File;
 
 use crate::types;
-
 
 pub fn load_config(filepath: &str) -> Result<Config, ConfigError> {
     let conf = Config::builder()

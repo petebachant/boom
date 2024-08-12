@@ -1,8 +1,7 @@
-use crate::types;
-
+use futures::stream::StreamExt;
 use mongodb::bson::doc;
 
-use futures::stream::StreamExt;
+use crate::types;
 
 const DEGRA: f64 = std::f64::consts::PI / 180.0;
 
