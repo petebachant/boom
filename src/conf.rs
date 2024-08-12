@@ -47,7 +47,7 @@ pub async fn build_db(conf: &Config) -> mongodb::Database {
         if let Some(name) = db_conf.get("name") {
             name.clone().into_string().unwrap()
         } else {
-            "zvar".to_string()
+            "boom".to_string()
         }
     };
 
