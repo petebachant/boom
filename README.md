@@ -81,4 +81,6 @@ We welcome contributions! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) fil
 - [ ] Add CI/CD to the repository, with GitHub Actions.
 - [ ] Create docker images for the `alert_worker` and `ml_worker` binaries, as lightweight as possible, with the number of workers configurable via environment variables.
 - [ ] Add all the kube manifests to deploy the whole system on a kubernetes cluster, with autoscaling of the workers when the `Valkey` queues get too long.
-- [ ] Improve the performance of **EVERYTHING**.
+- [ ] Improve the performance of **EVERYTHING**, by profiling the code and adding benchmarks to the repository.
+
+**All of the steps above do not need to be done in order, and can be done in parallel.**
