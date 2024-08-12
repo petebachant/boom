@@ -84,3 +84,40 @@ We welcome contributions! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) fil
 - [ ] Improve the performance of **EVERYTHING**, by profiling the code and adding benchmarks to the repository.
 
 **All of the steps above do not need to be done in order, and can be done in parallel.**
+
+## Implementation details:
+
+### Generating Rust types from the ZTF Avro schema:
+
+#### Dealing with Avro & Rust structs:
+
+It can get pretty painful in Rust to work with Avro schemas, and more specifically to have to write Rust structs that match them. To make this easier, we use the super useful `rsgen-avro` crate, which allows us to generate Rust structs from Avro schemas. First, install it as a binary with:
+```bash
+cargo install rsgen-avro --features="build-cli"
+```
+Then, you can generate the Rust structs from the Avro schema with:
+```bash
+rsgen-avro "schema/ztf/*.avsc" -
+```
+This will output the Rust structs to the standard output, which you can then copy-paste in a lib file in the `src` directory, so you can use them in your code.
+We already ran it for the ZTF Avro schema (so no need to do it again), and the corresponding Rust structs are in the `src/types.rs` file. We only slightly modified the `Alert` struct to add methods to create an alert from the bytes of an Avro record (`from_avro_bytes`).
+
+#### Dealing with Rust structs and MongoDB BSON documents:
+
+We could in theory just query MongoDB in a way that allows us to get Rust structs out of it, and also do the same when writing to the database. However under the hood the `mongodb` crate just serializes back and forth, and since Rust structs can't just "remove" their fields that are null (in a way, they need to enforce a schema), we would end up with a lot of null fields in the database. To avoid this, we use the `bson` crate to serialize the Rust structs to BSON documents, sanitize them (remove the null fields and such), and then write them to the database. When querying the DB, both bson documents or Rust structs can be returned, it depends on the use case.
+
+#### Why still using Python for some parts of the pipeline?
+
+For everything ML-related, it's not that easy to just take anyone's model (that was 99% of the time trained with a Python library) and just run it in Rust. We could try (and successfully did for a handful of models) converting them to ONNX, and then running them with `tch-rs` (a Rust wrapper around the `libtorch` C++ library). However, this proved to be a pain on a lot of systems. Thanks to the fact that we use something like `Redis`/`Valkey` as a cache/task queue, we can pretty much send data between whatever language we want, and have the ML models run in Python, and the rest of the pipeline run in Rust. It will also come in handy for the filtering pipeline, as we can leverage any of Python's libraries to do some fancy & complex computation that would be a pain for your average astronomer to write in Rust. So for now, we limit the Rust code to all of the "core" parts of the pipeline where performance is key, and use Python where we can affort to lose a bit of performance for more flexibility.
+
+#### Why `Redis`/`Valkey` as a cache/task queue?
+
+There are multiple answers to this:
+- Because it is well maintained, well documented, both on the server side and the clients to interact with the software from any programming language.
+- Because it is fast, and can handle a lot of data in memory.
+- Because it is easy to use, and can be used as a cache, a task queue, a message broker, and more. It's a piece of software we can reuse to solve multiple problems in a large system.
+- Because other task queue systems like `Celery`, `Dask`, `RabbitMQ`, `Kafka`, etc. are either too complex, too slow, too hard to maintain, have memory leaks, poor support across multiple programming languages, or all of the above. `Redis`/`Valkey` is simple and fast, and allows us to build the rest of the system on top of it. However the system is designed in a way that we can swap `Redis`/`Valkey` for another task queue system if we ever need to, with minimal changes to the code.
+
+#### Why `MongoDB` as a database?
+
+MongoDB proved to be a great choice for another broker that `BOOM` is heavily inspired from: `Kowalski`. Mongo has great support across multiple programming languages, is highly flexible, has a rich query language that we can build complex pipelines with (perfect for filtering alerts), and is easy to maintain. It is also fast, and can handle a lot of data. We could have gone with `PostgreSQL`, but we would have lost some flexibility, and we would have had to enforce a schema on the data, which is not ideal for an alert stream that can have a lot of different fields. With MongoDB, we do not have to enforce a schema or run database migrations whenever we want to add another astronomical catalog to crossmatch with the alerts.
