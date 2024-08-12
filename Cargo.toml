@@ -1,0 +1,31 @@
+[package]
+name = "boom"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = "0.3.30"
+redis = { version = "0.26.1", features = ["tokio-comp"] }
+tokio = { version = "1.39.2", features = ["full"] }
+rdkafka = "0.36.2"
+uuid = { version = "1.10", features = ["v4"] }
+apache-avro = "0.17.0"
+rsgen-avro = "0.14.1"
+serde = { version = "1.0", features = ["derive"] }
+rand = "0.8.5"
+config = "0.14.0"
+
+[dependencies.mongodb]
+version = "3.0.1"
+
+[[bin]]
+name = "alert_worker"
+path = "src/bin/alert_worker.rs"
+
+[[bin]]
+name = "kafka_consumer"
+path = "src/bin/kafka_consumer.rs"
+
+[[bin]]
+name = "gen_types_from_avro"
+path = "src/bin/gen_types_from_avro.rs"
