@@ -1,5 +1,0 @@
-{ 
-    "candidate.magpsf": { 
-        "$lte": 18.5 
-    } 
-}

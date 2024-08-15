@@ -1,6 +1,8 @@
 use redis::AsyncCommands;
-use mongodb::Client;
-use mongodb::bson::doc;
+use mongodb::{
+    bson::{doc, Document}, Client
+};
+use futures::stream::StreamExt;
 use boom::conf;
 use std::{
     error::Error,
@@ -9,6 +11,10 @@ use std::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+
+    let config_file = conf::load_config("./config.yaml").unwrap();
+    let db = conf::build_db(&config_file).await;
+
     let client_redis = redis::Client::open(
         "redis://localhost:6379".to_string()
     ).unwrap();
@@ -16,19 +22,76 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .get_multiplexed_async_connection().await.unwrap();
     // con.subscribe("filterafterml").await.unwrap(); // subscribe queue containing candids from ML workers
 
-    let res = con.rpop::<&str, Vec<i64>>("filterafterml", NonZero::new(100)).await;
+    let res: Result<Vec<i64>, redis::RedisError> = 
+        con.rpop::<&str, Vec<i64>>("filterafterml", NonZero::new(100)).await;
     match res {
+        Ok(candids) => {
+            println!("received {:?} candids from redis", candids.len());
+            println!("running demo filter...");
+            let result = db.collection::<mongodb::bson::Document>(
+                "alerts"
+            ).aggregate([
+                doc! {
+                    "$match": doc! {
+                        "candid": doc! {
+                            "$in": [
+                               candids
+                            ]
+                        }
+                    }
+                },
+                doc! {
+                    "$project": doc! {
+                        "cutoutScience": 0,
+                        "cutoutDifference": 0,
+                        "cutoutTemplate": 0,
+                        "publisher": 0,
+                        "schemavsn": 0
+                    }
+                },
+                doc! {
+                    "$lookup": doc! {
+                        "from": "alerts_aux",
+                        "localField": "objectId",
+                        "foreignField": "_id",
+                        "as": "aux"
+                    }
+                },
+                doc! {
+                    "$project": doc! {
+                        "objectId": 1,
+                        "candid": 1,
+                        "candidate": 1,
+                        "classifications": 1,
+                        "coordinates": 1,
+                        "prv_candidates": doc! {
+                            "$arrayElemAt": [
+                                "$aux.prv_candidates",
+                                0
+                            ]
+                        },
+                        "cross_matches": doc! {
+                            "$arrayElemAt": [
+                                "$aux.cross_matches",
+                                0
+                            ]
+                        }
+                    }
+                },
+                // doc! {
+                //     "$match": doc! {
+                //         "candidate.magpsf": doc! {
+                //             "$lte": 18.5
+                //         }
+                //     }
+                // }
+            ]).await?;
+            println!("filter completed");
+            // TODO: get the candids which pass through the filter all the way.
+            // TODO: place those candids into a new redis queue.
+        },
         Err(e) => {
             println!("got error: {:?}", e);
-        },
-        Ok(value) => {
-            println!("received {:?} candids", value.len());
-            for i in 0..value.len() {
-                println!("{:?}", value[i]);
-            }
-        },
-        _ => {
-            println!("something else happened...");
         },
     }
     
