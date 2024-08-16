@@ -13,7 +13,7 @@ use std::{
 async fn main() -> Result<(), Box<dyn Error>> {
 
     let config_file = conf::load_config("./config.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
+    let db = conf::build_db(&config_file, true).await;
 
     let client_redis = redis::Client::open(
         "redis://localhost:6379".to_string()
