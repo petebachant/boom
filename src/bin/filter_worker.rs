@@ -5,11 +5,18 @@ use mongodb::{
 use futures::stream::StreamExt;
 use boom::conf;
 use std::{
-    error::Error, num::NonZero
+    error::Error, num::NonZero, env,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+
+    let args: Vec<String> = env::args().collect();
+    let mut filter_id = 1;
+    if args.len() > 1 {
+        filter_id = args[1].parse::<i32>().unwrap();
+    }
+
     // connect to mongo and redis
     let config_file = conf::load_config("./config.yaml").unwrap();
     let db = conf::build_db(&config_file, true).await;
@@ -31,12 +38,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     continue;
                 }
                 let in_count = candids.len();
-                let start = std::time::Instant::now();
                 println!("received {:?} candids from redis", candids.len());
-                println!("running demo filter...");
-                
+                println!("running demo filter {} on alerts", filter_id);
+
+                let start = std::time::Instant::now();
                 // build filter
-                let filter = build_filter(candids, 2, &db).await?;
+                let filter = build_filter(candids, filter_id, &db).await?;
 
                 // run filter
                 let mut result = db.collection::<Document>(
@@ -172,7 +179,7 @@ pub async fn build_filter(
     // get filter pipeline as str and convert to Vec<Bson>
     let filter = filter_obj.get("pipeline")
         .unwrap().as_str().unwrap();
-    let filter = serde_json::from_str::<serde_json::Value>(filter).expect("invalid BSON");
+    let filter = serde_json::from_str::<serde_json::Value>(filter).expect("Invalid input");
     let filter = filter.as_array().unwrap();
 
     // append stages to prefix
