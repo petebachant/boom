@@ -1,27 +1,16 @@
 use redis::AsyncCommands;
 use mongodb::{
-    bson::{doc, Document}, Client
+    bson::doc, bson::Document
 };
 use futures::stream::StreamExt;
 use boom::conf;
 use std::{
-    error::Error,
-    num::NonZero,
+    error::Error, num::NonZero
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-
-    // temp demo_filter
-    let demo_filter = vec! [
-        doc! {
-            "$match": doc! {
-                "candidate.magpsf": doc! {
-                    "$lte": 18.5
-                }
-            }
-        }];
-
+    // connect to mongo and redis
     let config_file = conf::load_config("./config.yaml").unwrap();
     let db = conf::build_db(&config_file, true).await;
     let client_redis = redis::Client::open(
@@ -30,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .get_multiplexed_async_connection().await.unwrap();
 
     loop {
-        // grab candids from redis queue
+        // retrieve candids from redis queue
         let res: Result<Vec<i64>, redis::RedisError> = 
             con.rpop::<&str, Vec<i64>>("filterafterml", NonZero::new(1000)).await;
 
@@ -47,14 +36,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 println!("running demo filter...");
                 
                 // build filter
-                let filter = build_filter(candids, demo_filter.clone()).unwrap();
+                let filter = build_filter(candids, 2, &db).await?;
 
                 // run filter
-                let mut result = db.collection::<mongodb::bson::Document>(
+                let mut result = db.collection::<Document>(
                     "alerts"
                 ).aggregate(filter).await?;
                 
-                // grab output candids (I am sure there is a faster way to do this...)
+                // grab output candids
                 let mut out_candids: Vec<i64> = Vec::new();
                 let mut out_count = 0;
                 while let Some(doc) = result.next().await {
@@ -78,58 +67,119 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 
-// builds a mongodb aggregate pipeline by adding the database_filter on top of the default prefix
-pub fn build_filter(
-    candids: Vec<i64>, user_filter: Vec<mongodb::bson::Document>
+pub async fn build_filter(
+    candids: Vec<i64>, filter_id: i32, db: &mongodb::Database,
 ) -> Result<Vec<mongodb::bson::Document>, Box<dyn Error>> {
-    let mut filter = vec![
+    // filter prefix
+    let mut out_filter = vec![
         doc! {
-        "$match": doc! {
-            "candid": doc! {
-                "$in": candids
+            "$match": doc! {
+                "candid": doc! {
+                    "$in": candids
+                }
+            }
+        },
+        doc! {
+            "$project": doc! {
+                "cutoutScience": 0,
+                "cutoutDifference": 0,
+                "cutoutTemplate": 0,
+                "publisher": 0,
+                "schemavsn": 0
+            }
+        },
+        doc! {
+            "$lookup": doc! {
+                "from": "alerts_aux",
+                "localField": "objectId",
+                "foreignField": "_id",
+                "as": "aux"
+            }
+        },
+        doc! {
+            "$project": doc! {
+                "objectId": 1,
+                "candid": 1,
+                "candidate": 1,
+                "classifications": 1,
+                "coordinates": 1,
+                "prv_candidates": doc! {
+                    "$arrayElemAt": [
+                        "$aux.prv_candidates",
+                        0
+                    ]
+                },
+                "cross_matches": doc! {
+                    "$arrayElemAt": [
+                        "$aux.cross_matches",
+                        0
+                    ]
+                }
             }
         }
-    },
-    doc! {
-        "$project": doc! {
-            "cutoutScience": 0,
-            "cutoutDifference": 0,
-            "cutoutTemplate": 0,
-            "publisher": 0,
-            "schemavsn": 0
-        }
-    },
-    doc! {
-        "$lookup": doc! {
-            "from": "alerts_aux",
-            "localField": "objectId",
-            "foreignField": "_id",
-            "as": "aux"
-        }
-    },
-    doc! {
-        "$project": doc! {
-            "objectId": 1,
-            "candid": 1,
-            "candidate": 1,
-            "classifications": 1,
-            "coordinates": 1,
-            "prv_candidates": doc! {
-                "$arrayElemAt": [
-                    "$aux.prv_candidates",
-                    0
-                ]
-            },
-            "cross_matches": doc! {
-                "$arrayElemAt": [
-                    "$aux.cross_matches",
-                    0
-                ]
+    ];
+    
+    // grab filter from database
+    // >> pipeline returns document with group_id, permissions, and filter pipeline
+    let filter_obj = db.collection::<Document>("filters")
+        .aggregate(vec![
+        doc! {
+            "$match": doc! {
+                "filter_id": filter_id,
+                "active": true,
+                "catalog": "ZTF_alerts"
             }
-        }
-    }];
-    for stage in user_filter {
-        filter.push(stage);
+        },
+        doc! {
+            "$project": doc! {
+                "fv": doc! {
+                    "$filter": doc! {
+                        "input": "$fv",
+                        "as": "x",
+                        "cond": doc! {
+                            "$eq": [
+                                "$$x.fid",
+                                "$active_fid"
+                            ]
+                        }
+                    }
+                },
+                "group_id": 1,
+                "permissions": 1
+            }
+        },
+        doc! {
+            "$project": doc! {
+                "pipeline": doc! {
+                    "$arrayElemAt": [
+                        "$fv.pipeline",
+                        0
+                    ]
+                },
+                "group_id": 1,
+                "permissions": 1
+            }
+        }]
+    ).await;
+    if let Err(e) = filter_obj {
+        println!("Got ERROR when retrieving filter from database: {}", e);
+        return Result::Err(Box::new(e));
     }
-    Ok(filter)
+
+    // get document from cursor
+    let filter_obj = filter_obj
+        .unwrap().deserialize_current().unwrap();
+    // get filter pipeline as str and convert to Vec<Bson>
+    let filter = filter_obj.get("pipeline")
+        .unwrap().as_str().unwrap();
+    let filter = serde_json::from_str::<serde_json::Value>(filter).expect("invalid BSON");
+    let filter = filter.as_array().unwrap();
+
+    // append stages to prefix
+    for stage in filter {
+        let x = mongodb::bson::to_document(stage).expect("invalid filter BSON");
+        out_filter.push(x);
+    }
+
+    Ok(out_filter)
 }
