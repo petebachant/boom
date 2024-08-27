@@ -144,7 +144,7 @@ pub async fn run_filter(
                 out_candids.push(x);
             },
             Err(e) => {
-                println!("got error {}", e);
+                println!("got error: {}", e);
                 return Result::Err(Box::new(e));
             }
         }
