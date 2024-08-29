@@ -5,5 +5,3 @@ data/alerts/ztf/20**/*.avro
 data/alerts/ztf/20**/*.tar.gz
 __pycache__
 /env
-/src/bin/drop_collections.rs
-/src/bin/print_filter.rs
