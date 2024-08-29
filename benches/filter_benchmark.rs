@@ -8,10 +8,15 @@ use boom::{
     filter,
     conf,
 };
+mod benchmark_util;
+use crate::benchmark_util as util;
 
 // run: cargo bench filter_benchmark -- <filter_id> <num_iterations_on_candids>
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+
+    let queue_name = "benchmarkqueue";
+    util::setup_benchmark(&queue_name).await?;
 
     // grab command line arguments
     let args: Vec<String> = env::args().collect();
@@ -40,7 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let start = std::time::Instant::now();
         // retrieve candids from redis queue
         let res: Result<Vec<i64>, redis::RedisError> = con.rpop::<&str, Vec<i64>>(
-                "filterafterml", NonZero::new(1000)).await;
+                &queue_name, NonZero::new(1000)).await;
 
         match res {
             Ok(candids) => {
@@ -49,14 +54,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     return Ok(());
                 }
 
-                let out_candids = filter::run_filter(candids.clone(), filter_id, &db).await?;
+                let _out_candids = filter::run_filter(candids.clone(), filter_id, &db).await?;
 
                 let total_time = (std::time::Instant::now() - start).as_secs_f64();
                 runs.push((i, candids.len(), total_time));
 
                 // push all candids back onto the redis queue
                 con.lpush::<&str, Vec<i64>, isize>(
-                    "filterafterml", candids.clone()
+                    &queue_name, candids.clone()
                 ).await?;
             },
             Err(e) => {
@@ -64,10 +69,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             },
         }
     }
-    println!("=========================\n   FULL OUTPUT\n=========================");
+    // println!("=========================\n   FULL OUTPUT\n=========================");
     // for run in runs.clone() {
     //     println!("run {} filtered {} candids in {} seconds", run.0, run.1, run.2);
     // }
+
     let mut total_alerts = 0;
     let mut total_time = 0.0;
     let mut min_time: (i32, f64) = (-1, 99999.0);
@@ -82,11 +88,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             max_time = (i.0, i.2);
         }
     }
-    println!("=========================\n   SUMMARY\n=========================");
+    println!("=========================\n   SUMMARY\n");
     let total_alerts = total_alerts as f64;
     let average = total_alerts / total_time;
-    println!("average speed: {} alerts filtered per second", average);
-    
-    println!("fastest run: {} @ {}\nslowest run: {} @ {}", min_time.0, min_time.1, max_time.0, max_time.1);
+    println!("   average speed: {} alerts filtered / sec", average);
+    println!("   fastest run: {} @ {}\n   slowest run: {} @ {}", min_time.0, min_time.1, max_time.0, max_time.1);
+    println!("=========================");
     Ok(())
 }
