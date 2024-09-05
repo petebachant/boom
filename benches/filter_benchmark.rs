@@ -39,6 +39,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut runs: Vec<(i32, usize, f64)> = Vec::new();
 
+    let mut test_filter = filter::Filter::build(filter_id, &db).await?;
+
     // run benchmark 5 times
     for i in 0..n {
 
@@ -53,8 +55,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     println!("Queue empty");
                     return Ok(());
                 }
-
-                let _out_candids = filter::run_filter(candids.clone(), filter_id, &db).await?;
+                
+                let _out_candids = test_filter.run(candids.clone(), &db).await?;
 
                 let total_time = (std::time::Instant::now() - start).as_secs_f64();
                 runs.push((i, candids.len(), total_time));

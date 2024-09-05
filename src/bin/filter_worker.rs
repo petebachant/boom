@@ -10,6 +10,7 @@ use boom::{conf, filter};
 async fn main() -> Result<(), Box<dyn Error>> {
 
     // grab command line arguments
+    // args: <filter_id>
     let args: Vec<String> = env::args().collect();
     let mut filter_id = 1;
     if args.len() > 1 {
@@ -23,7 +24,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "redis://localhost:6379".to_string()).unwrap();
     let mut con = client_redis
         .get_multiplexed_async_connection().await.unwrap();
-
+    
+    // build filter
+    let mut filter = filter::Filter::build(filter_id, &db).await?;
+    
     loop {
         // retrieve candids from redis queue
         let res: Result<Vec<i64>, redis::RedisError> = con.rpop::<&str, Vec<i64>>(
@@ -42,7 +46,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 let start = std::time::Instant::now();
 
-                let out_candids = filter::run_filter(candids, filter_id, &db).await?;
+                let out_candids = filter.run(candids, &db).await?;
 
                 // send resulting candids to redis
                 con.lpush::<&str, Vec<i64>, isize>(
