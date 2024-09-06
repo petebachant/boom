@@ -4,3 +4,4 @@ pub mod conf;
 pub mod coordinates;
 pub mod alert;
 pub mod time;
+pub mod filter;

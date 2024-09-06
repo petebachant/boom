@@ -1,5 +1,7 @@
 /target
+Cargo.lock
 config.yaml
 data/alerts/ztf/20**/*.avro
 data/alerts/ztf/20**/*.tar.gz
 __pycache__
+/env

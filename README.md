@@ -37,7 +37,7 @@ docker-compose up -d
     ```bash
     cargo run --bin fake_kafka_consumer <date_in_YYYMMDD_format>
     ```
-    Where `<date_in_YYYMMDD_format>` is the date of the alerts you want to read. We suggest using a night with a very small number of alerts to just get the code running, like `202406171` for example. The script will take care of downloading the alerts from the ZTF IPAC server, and writing them to `data/alerts/ztf/YYYYMMDD/*.avro`.
+    Where `<date_in_YYYMMDD_format>` is the date of the alerts you want to read. We suggest using a night with a very small number of alerts to just get the code running, like `20240617` for example. The script will take care of downloading the alerts from the ZTF IPAC server, and writing them to `data/alerts/ztf/YYYYMMDD/*.avro`.
     This will start reading alerts from the file `data/alerts.json` and sending them to the `Valkey` instance's `alertpacketqueue` list.
 
 - Next, you can start the real-time processing system with:

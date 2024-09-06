@@ -145,6 +145,9 @@ if __name__ == "__main__":
             )
             for alert, probability in zip(alerts, probabilities)
         ]
+        # send candids to filter worker (1000 candids max / lpush)
+        r.lpush("filterafterml", *candids)
+
         result = alerts_collection.bulk_write(bulk_updates)
         print(f"Total query + inference + write time: {time.time() - start} seconds")
         time.sleep(1)
