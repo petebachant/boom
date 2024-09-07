@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut con = client.get_multiplexed_async_connection().await.unwrap();
 
     // empty the queue
-    con.del::<&str, usize>("alertpacketqueue").await.unwrap();
+    con.del::<&str, usize>("ZTF_alerts_packet_queue").await.unwrap();
 
     let mut total = 0;
 
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = entry.path();
         let payload = std::fs::read(path)?;
 
-        con.rpush::<&str, Vec<u8>, usize>("alertpacketqueue", payload.to_vec()).await.unwrap();
+        con.rpush::<&str, Vec<u8>, usize>("ZTF_alerts_packet_queue", payload.to_vec()).await.unwrap();
         total += 1;
         if total % 1000 == 0 {
             println!("Pushed {} items since {:?}", total, start.elapsed());

@@ -8,8 +8,15 @@ fn test_load_config() {
 
     let conf = conf.unwrap();
 
-    let crossmatches = conf.get_array("crossmatch").unwrap();
-    assert_eq!(crossmatches.len(), 9);
+    let crossmatches = conf.get_table("crossmatch").unwrap();
+    // check that ZTF is one of the keys
+    assert!(crossmatches.get(&"ZTF".to_lowercase()).is_some());
+    let crossmatches_ztf = crossmatches.get(&"ZTF".to_lowercase()).clone().cloned();
+    assert!(crossmatches_ztf.is_some());
+    let crossmatches_ztf = crossmatches_ztf.unwrap().clone().into_array().unwrap();
+    // check that the crossmatch for ZTF is an array
+    assert_eq!(crossmatches_ztf.len(), 9);
+    
 
     let hello = conf.get_string("hello");
     assert!(hello.is_ok());
@@ -24,10 +31,12 @@ fn test_build_xmatch_configs() {
 
     let conf = conf.unwrap();
 
-    let crossmatches = conf.get_array("crossmatch").unwrap();
-    assert_eq!(crossmatches.len(), 9);
+    let crossmatches = conf.get_table("crossmatch").unwrap();
+    let crossmatches_ztf = crossmatches.get(&"ZTF".to_lowercase()).cloned().unwrap();
+    let crossmatches_ztf = crossmatches_ztf.into_array().unwrap();
+    assert!(crossmatches_ztf.len() > 0);
 
-    let catalog_xmatch_configs = conf::build_xmatch_configs(&conf);
+    let catalog_xmatch_configs = conf::build_xmatch_configs(&conf, "ZTF");
 
     assert_eq!(catalog_xmatch_configs.len(), 9);
 
