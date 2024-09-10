@@ -28,8 +28,10 @@ async fn alert_worker(output_queue_name: &str) {
 
     let config_file = conf::load_config("./config.default.yaml").unwrap();
 
-    let xmatch_configs = conf::build_xmatch_configs(&config_file);
+    let xmatch_configs = conf::build_xmatch_configs(&config_file, "ZTF");
     let db: mongodb::Database = conf::build_db(&config_file, true).await;
+    let alert_collection = db.collection::<mongodb::bson::Document>("ZTF_alerts");
+    let alert_aux_collection = db.collection::<mongodb::bson::Document>("ZTF_alerts_aux");
 
     if let Err(e) = db.list_collection_names().await {
         println!("Error connecting to the database: {}", e);
@@ -45,7 +47,13 @@ async fn alert_worker(output_queue_name: &str) {
         let result: Option<Vec<Vec<u8>>> = con.rpoplpush("benchalertpacketqueue", "benchalertpacketqueuetemp").await.unwrap();
         match result {
             Some(value) => {
-                let candid = alert::process_alert(value[0].clone(), &xmatch_configs, &db).await;
+                let candid = alert::process_alert(
+                    value[0].clone(),
+                    &xmatch_configs,
+                    &db,
+                    &alert_collection,
+                    &alert_aux_collection
+                ).await;
                 match candid {
                     Ok(Some(candid)) => {
                         // println!("Processed alert with candid: {}, queueing for classification", candid);
@@ -58,7 +66,7 @@ async fn alert_worker(output_queue_name: &str) {
                         // remove the alert from the queue
                         con.lrem::<&str, Vec<u8>, isize>("benchalertpacketqueuetemp", 1, value[0].clone()).await.unwrap();
                     }
-                    Err(e) => {
+                    Err(_) => {
                         // println!("Error processing alert: {}, requeueing", e);
                         // put it back in the alertpacketqueue, to the left (pop from the right, push to the left)
                         con.lrem::<&str, Vec<u8>, isize>("benchalertpacketqueuetemp", 1, value[0].clone()).await.unwrap();

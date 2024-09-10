@@ -40,7 +40,7 @@ async fn test_xmatch() {
     let conf = conf::load_config("tests/data/config.test.yaml").unwrap();
     let db = conf::build_db(&conf, false).await;
 
-    let catalog_xmatch_configs = conf::build_xmatch_configs(&conf);
+    let catalog_xmatch_configs = conf::build_xmatch_configs(&conf, "ZTF");
     assert_eq!(catalog_xmatch_configs.len(), 9);
 
     let ra = 323.233462;

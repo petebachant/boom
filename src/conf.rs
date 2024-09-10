@@ -12,11 +12,17 @@ pub fn load_config(filepath: &str) -> Result<Config, ConfigError> {
     Ok(conf)
 }
 
-pub fn build_xmatch_configs(conf: &Config) -> Vec<types::CatalogXmatchConfig> {
-    let crossmatches = conf.get_array("crossmatch").unwrap();
+pub fn build_xmatch_configs(conf: &Config, stream_name: &str) -> Vec<types::CatalogXmatchConfig> {
+    let crossmatches = conf.get_table("crossmatch").expect("crossmatches key not found");
+    println!("{:?}", crossmatches);
+    let crossmatches_stream = crossmatches.get(&stream_name.to_lowercase()).cloned();
+    println!("{:?}", crossmatches_stream);
+    if crossmatches_stream.is_none() {
+        return Vec::new();
+    }
     let mut catalog_xmatch_configs = Vec::new();
 
-    for crossmatch in crossmatches {
+    for crossmatch in crossmatches_stream.unwrap().clone().into_array().unwrap() {
         let catalog_xmatch_config = types::CatalogXmatchConfig::from_config(crossmatch);
         catalog_xmatch_configs.push(catalog_xmatch_config);
     }

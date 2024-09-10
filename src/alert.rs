@@ -7,7 +7,9 @@ use crate::time;
 pub async fn process_alert(
     avro_bytes: Vec<u8>,
     xmatch_configs: &Vec<types::CatalogXmatchConfig>,
-    db: &mongodb::Database
+    db: &mongodb::Database,
+    alert_collection: &mongodb::Collection<mongodb::bson::Document>,
+    alert_aux_collection: &mongodb::Collection<mongodb::bson::Document>,
 ) -> Result<Option<i64>, Box<dyn std::error::Error>> {
 
     // decode the alert
@@ -20,8 +22,7 @@ pub async fn process_alert(
     };
 
     // check if the alert already exists in the alerts collection
-    let collection_alert = db.collection("alerts");
-    if !collection_alert.find_one(doc! { "candid": &alert.candid }).await.unwrap().is_none() {
+    if !alert_collection.find_one(doc! { "candid": &alert.candid }).await.unwrap().is_none() {
         // we return early if there is already an alert with the same candid
         println!("alert with candid {} already exists", &alert.candid);
         return Ok(None);
@@ -43,17 +44,16 @@ pub async fn process_alert(
     // insert the alert into the alerts collection (with a created_at timestamp)
     let mut alert_doc = alert_no_history.mongify();
     alert_doc.insert("created_at", time::jd_now());
-    collection_alert.insert_one(alert_doc).await.unwrap();
+    alert_collection.insert_one(alert_doc).await.unwrap();
 
     // - new objects - new entry with prv_candidates, fp_hists, xmatches
     // - existing objects - update prv_candidates, fp_hists
     // (with created_at and updated_at timestamps)
-    let collection_alert_aux: mongodb::Collection<mongodb::bson::Document> = db.collection("alerts_aux");
 
     let prv_candidates_doc = prv_candidates.unwrap_or(vec![]).into_iter().map(|x| x.mongify()).collect::<Vec<_>>();
     let fp_hist_doc = fp_hist.unwrap_or(vec![]).into_iter().map(|x| x.mongify()).collect::<Vec<_>>();
 
-    if collection_alert_aux.find_one(doc! { "_id": &object_id }).await.unwrap().is_none() {
+    if alert_aux_collection.find_one(doc! { "_id": &object_id }).await.unwrap().is_none() {
         let jd_timestamp = time::jd_now();
         let mut doc = doc! {
             "_id": &object_id,
@@ -64,7 +64,7 @@ pub async fn process_alert(
         };
         doc.insert("cross_matches", spatial::xmatch(ra, dec, xmatch_configs, &db).await);
 
-        collection_alert_aux.insert_one(doc).await.unwrap();
+        alert_aux_collection.insert_one(doc).await.unwrap();
     } else {
         let update_doc = doc! {
             "$addToSet": {
@@ -76,7 +76,7 @@ pub async fn process_alert(
             }
         };
 
-        collection_alert_aux.update_one(doc! { "_id": &object_id }, update_doc).await.unwrap();
+        alert_aux_collection.update_one(doc! { "_id": &object_id }, update_doc).await.unwrap();
     }
 
     Ok(Some(candid))
