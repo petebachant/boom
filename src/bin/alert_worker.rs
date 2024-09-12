@@ -15,6 +15,7 @@ async fn main() {
         println!("Usage: alert_worker <stream_name> <config_file>, where config_file is optional");
         return;
     }
+
     let stream_name = &args[1];
 
     let config_file = if args.len() > 2 {
@@ -36,6 +37,19 @@ async fn main() {
 
     let alert_collection = db.collection(&format!("{}_alerts", stream_name));
     let alert_aux_collection = db.collection(&format!("{}_alerts_aux", stream_name));
+
+    // create index for alert collection
+    let alert_candid_index = mongodb::IndexModel::builder()
+        .keys(mongodb::bson::doc! { "candid": -1 })
+        .options(mongodb::options::IndexOptions::builder().unique(true).build())
+        .build();
+    match alert_collection.create_index(alert_candid_index).await {
+        Err(e) => {
+            println!("Error when creating index for candidate.candid in collection {}: {}", 
+                format!("{}_alerts", stream_name), e);
+        },
+        Ok(_x) => {}
+    }
 
     // REDIS
     let client_redis = redis::Client::open(
@@ -75,7 +89,7 @@ async fn main() {
 
                 if count > 1 && count % 100 == 0 {
                     let elapsed = start.elapsed().as_secs();
-                    println!("\nProcessed {} {} alerts in {} seconds, avg: {:.4} alerts/s\n", count, stream_name, elapsed, elapsed as f64 / count as f64);
+                    println!("\nProcessed {} {} alerts in {} seconds, avg: {:.4} alerts/s\n", count, stream_name, elapsed, count as f64 / elapsed as f64);
                 }
                 count += 1;
             }
