@@ -10,10 +10,11 @@ pub async fn process_alert(
     db: &mongodb::Database,
     alert_collection: &mongodb::Collection<mongodb::bson::Document>,
     alert_aux_collection: &mongodb::Collection<mongodb::bson::Document>,
+    schema: &apache_avro::Schema,
 ) -> Result<Option<i64>, Box<dyn std::error::Error>> {
 
     // decode the alert
-    let alert = match types::Alert::from_avro_bytes(avro_bytes) {
+    let alert = match types::Alert::from_avro_bytes_unsafe(avro_bytes, schema) {
         Ok(alert) => alert,
         Err(e) => {
             println!("Error reading alert packet: {}", e);

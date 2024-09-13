@@ -1,10 +1,27 @@
+use std::io::Read;
+
 use apache_avro::from_value;
-use apache_avro::Reader;
+use apache_avro::{Reader, Schema, from_avro_datum};
 use config::Value;
 use mongodb::bson::doc;
 use mongodb::bson::to_document;
 
 use crate::coordinates;
+
+pub fn ztf_alert_schema() -> Option<Schema> {
+    // infer the schema from an avro file directly,
+    // easier than merging the 5 schemas in schema/ztf
+    let avro_file = std::fs::File::open("tests/data/alerts/ztf/2695378462115010012.avro").unwrap();
+    let reader = match Reader::new(avro_file) {
+        Ok(reader) => reader,
+        Err(e) => {
+            println!("Error creating avro reader: {}", e);
+            return None;
+        }
+    };
+    let schema = reader.writer_schema();
+    Some(schema.to_owned())
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Cutout {
@@ -888,9 +905,46 @@ impl Alert {
         };
         
         let value = reader.map(|x| x.unwrap()).next().unwrap();
-        let alert: Alert = from_value(&value).unwrap();
+        let alert: Alert = from_value::<Alert>(&value).unwrap();
         Ok(alert)
     }
+
+    pub fn from_avro_bytes_unsafe(avro_bytes: Vec<u8>, schema: &apache_avro::Schema) -> Result<Alert, Box<dyn std::error::Error>> {
+        let mut cursor = std::io::Cursor::new(avro_bytes);
+
+        let mut buf = [0; 4];
+        cursor.read_exact(&mut buf)?; // avro identifier
+        if buf != [b'O', b'b', b'j', 1u8] {
+            return Err("Invalid Avro file".into());
+        }
+
+        let meta_schema = Schema::map(Schema::Bytes);
+        from_avro_datum(&meta_schema, &mut cursor, None)?;
+
+        // marker we don't need, should be equal to "gogenavromagic10" in bytes
+        cursor.read_exact(&mut [0u8; 16])?;
+
+        //  next 4 bytes contains info about the nb of messages and size
+        // not needed since we only get one alert per avro packet
+        cursor.read_exact(&mut [0u8; 4])?;
+
+        // cursor.position() should be equal to 25641
+        // we could technically hardcode this, but then even a subtle schema change might break it
+        // at least here, we use from_avro_datum above to read the metadata and skip those bytes consistently
+
+        let value = from_avro_datum(&schema, &mut cursor, None);
+        match value {
+            Ok(value) => {
+                let alert: Alert = from_value::<Alert>(&value).unwrap();
+                Ok(alert)
+            }
+            Err(e) => {
+                println!("Error deserializing avro message: {}", e);
+                Err(Box::new(e))
+            }
+        }
+    }
+
 }
 
 impl AlertNoHistory {

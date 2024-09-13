@@ -2,6 +2,23 @@ use boom::types;
 use boom::conf;
 
 #[test]
+fn test_avro_to_alert() {
+    let file_name = "tests/data/alerts/ztf/2695378462115010012.avro";
+    let bytes_content = std::fs::read(file_name).unwrap();
+    let alert = types::Alert::from_avro_bytes(bytes_content);
+    assert!(alert.is_ok());
+}
+
+#[test]
+fn test_avro_to_alert_unsafe() {
+    let schema = types::ztf_alert_schema().unwrap();
+    let file_name = "tests/data/alerts/ztf/2695378462115010012.avro";
+    let bytes_content = std::fs::read(file_name).unwrap();
+    let alert = types::Alert::from_avro_bytes_unsafe(bytes_content, &schema);
+    assert!(alert.is_ok());
+}
+
+#[test]
 fn test_alert() {
     let file_name = "tests/data/alerts/ztf/2695378462115010012.avro";
     let bytes_content = std::fs::read(file_name).unwrap();
@@ -170,9 +187,12 @@ fn test_catalogxmatchconfig() {
 
     // validate the from_config method
     let config = conf::load_config("tests/data/config.test.yaml").unwrap();
-    let crossmatches = config.get_array("crossmatch").unwrap();
+    let crossmatches = config.get_table("crossmatch").unwrap();
+    let crossmatches_ztf = crossmatches.get(&"ZTF".to_lowercase()).cloned().unwrap();
+    let crossmatches_ztf = crossmatches_ztf.into_array().unwrap();
+    assert!(crossmatches_ztf.len() > 0);
     
-    for crossmatch in crossmatches {
+    for crossmatch in crossmatches_ztf {
         let catalog_xmatch_config = types::CatalogXmatchConfig::from_config(crossmatch);
         assert!(catalog_xmatch_config.catalog.len() > 0);
         assert!(catalog_xmatch_config.radius > 0.0);

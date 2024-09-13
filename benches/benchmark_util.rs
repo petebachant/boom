@@ -1,5 +1,6 @@
 use boom::conf;
 use boom::alert;
+use boom::types::ztf_alert_schema;
 use redis::AsyncCommands;
 
 
@@ -26,7 +27,7 @@ pub async fn drop_alert_collections() -> Result<(), Box<dyn std::error::Error>> 
 
 async fn alert_worker(output_queue_name: &str) {
 
-    let config_file = conf::load_config("./config.default.yaml").unwrap();
+    let config_file = conf::load_config("./config.yaml").unwrap();
 
     let xmatch_configs = conf::build_xmatch_configs(&config_file, "ZTF");
     let db: mongodb::Database = conf::build_db(&config_file, true).await;
@@ -43,6 +44,8 @@ async fn alert_worker(output_queue_name: &str) {
     ).unwrap();
     let mut con = client_redis.get_multiplexed_async_connection().await.unwrap();
 
+    let schema = ztf_alert_schema().unwrap();
+
     loop {
         let result: Option<Vec<Vec<u8>>> = con.rpoplpush("benchalertpacketqueue", "benchalertpacketqueuetemp").await.unwrap();
         match result {
@@ -52,7 +55,8 @@ async fn alert_worker(output_queue_name: &str) {
                     &xmatch_configs,
                     &db,
                     &alert_collection,
-                    &alert_aux_collection
+                    &alert_aux_collection,
+                    &schema
                 ).await;
                 match candid {
                     Ok(Some(candid)) => {
