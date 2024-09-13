@@ -3,6 +3,7 @@ use std::env;
 
 use boom::conf;
 use boom::alert;
+use boom::types::ztf_alert_schema;
 
 #[tokio::main]
 async fn main() {
@@ -46,13 +47,16 @@ async fn main() {
     let queue_temp_name = format!("{}_alerts_packet_queuetemp", stream_name);
     let classifer_queue_name = format!("{}_alerts_classifier_queue", stream_name);
 
+    // ALERT SCHEMA (for fast avro decoding)
+    let schema = ztf_alert_schema().unwrap();
+
     let mut count = 0;
     let start = std::time::Instant::now();
     loop {
         let result: Option<Vec<Vec<u8>>> = con.rpoplpush(&queue_name, &queue_temp_name).await.unwrap();
         match result {
             Some(value) => {
-                let candid = alert::process_alert(value[0].clone(), &xmatch_configs, &db, &alert_collection, &alert_aux_collection).await;
+                let candid = alert::process_alert(value[0].clone(), &xmatch_configs, &db, &alert_collection, &alert_aux_collection, &schema).await;
                 match candid {
                     Ok(Some(candid)) => {
                         println!("Processed alert with candid: {}, queueing for classification", candid);
