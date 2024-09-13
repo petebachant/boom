@@ -42,8 +42,10 @@ docker-compose up -d
 
 - Next, you can start the real-time processing system with:
     ```bash
-    cargo run --bin alert_worker --release
+    cargo run --release --bin alert_worker <stream_name>
     ```
+    *running with --release option doubles performance*
+
     This will start reading alerts from the `Valkey` instance's `alertpacketqueue` list, an process the alerts. You can start multiple instances of this worker to parallelize the processing (in another terminal for example). At the end of each alert processing, the `candid` (unique identifier of an alert) will be stored in the `Valkey` instance's `alertclassifierqueue` list.
 
 - Finally, you can start the real-time ML worker with:
