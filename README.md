@@ -48,12 +48,23 @@ docker-compose up -d
 
     This will start reading alerts from the `Valkey` instance's `alertpacketqueue` list, an process the alerts. You can start multiple instances of this worker to parallelize the processing (in another terminal for example). At the end of each alert processing, the `candid` (unique identifier of an alert) will be stored in the `Valkey` instance's `alertclassifierqueue` list.
 
-- Finally, you can start the real-time ML worker with:
+- Next, you can start the real-time ML worker with:
     ```bash
     pip install -r requirements.txt
     python py_workers/ml_worker.py
     ```
     This will start reading alerts from the `Valkey` instance's `alertclassifierqueue` list, and process the alerts with the ML classifiers. You can start multiple instances of this worker to parallelize the processing (in another terminal for example). Essentially, this gets up to 1000 `candid`s at once, grabs the alerts from the DB, and runs the ML classifiers on them, in batches of up to 1000 alerts. Then, it stores the results in the DB.
+
+- Finally, a filtering worker can be started with:
+    ```bash
+    cargo run --bin filter_worker <filter_id(s)>
+    ```
+
+    An example run looks like:
+    `cargo run --bin filter_worker 2 3`
+
+    This will start a filter worker which runs filters (MongoDB aggregation pipelines) on alerts and sends the results to an output redis queue. The filters are retrieved from the database and each filter reads from a stream of incoming data matching its highest data access permissions.
+
 
 ## Contributing
 

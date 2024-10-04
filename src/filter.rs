@@ -20,6 +20,7 @@ pub struct Filter {
     pub pipeline: Vec<Document>,
     pub permissions: Vec<i64>,
     pub catalog: String,
+    pub id: i32,
 }
 
 impl Filter {
@@ -186,6 +187,7 @@ impl Filter {
             pipeline: out_filter,
             permissions: permissions,
             catalog: catalog.to_string(),
+            id: filter_id,
         };
 
         Ok(out_filter)
