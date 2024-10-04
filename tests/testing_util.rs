@@ -10,7 +10,7 @@ pub async fn drop_alert_collections(
     alert_collection_name: &str, 
     alert_aux_collection_name: &str
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     db.collection::<mongodb::bson::Document>(alert_collection_name).drop().await?;
     db.collection::<mongodb::bson::Document>(alert_aux_collection_name).drop().await?;
@@ -58,7 +58,7 @@ pub async fn alert_worker(
     alert_collection_name: &str,
     alert_aux_collection_name: &str
 ) {
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let stream_name = "ZTF";
     let xmatch_configs = conf::build_xmatch_configs(&config_file, stream_name);
     let db: mongodb::Database = conf::build_db(&config_file).await;
@@ -147,7 +147,7 @@ pub async fn insert_test_filter() {
         }
       };
 
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let x = db.collection::<mongodb::bson::Document>("filters").insert_one(filter_obj).await;
     match x {
@@ -160,7 +160,7 @@ pub async fn insert_test_filter() {
 
 // remove test filter with id -1 from the database
 pub async fn remove_test_filter() {
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let _ = db.collection::<mongodb::bson::Document>("filters").delete_one(doc!{"filter_id": -1}).await;
 }
