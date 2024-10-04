@@ -11,6 +11,8 @@ use boom::{
 mod benchmark_util;
 use crate::benchmark_util as util;
 
+use boom::testing_util as tu;
+
 // run: cargo bench filter_benchmark -- <filter_id> <num_iterations_on_candids>
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -20,20 +22,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // grab command line arguments
     let args: Vec<String> = env::args().collect();
-    let mut filter_id = 1;
+    let mut filter_id = -1;
     let mut n = 20;
-    if args.len() > 2 {
+    if args.len() > 3 {
         filter_id = args[2].parse::<i32>().unwrap();
         n = args[3].parse::<i32>().unwrap();
     }
 
     // connect to mongo and redis
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let client_redis = redis::Client::open(
         "redis://localhost:6379".to_string()).unwrap();
     let mut con = client_redis
         .get_multiplexed_async_connection().await.unwrap();
+
+    // if filter_id is -1, then we are running the benchmark on the test filter
+    // as part of the CI/CD pipeline. In which case we need to insert the test filter
+    // into the database
+    if filter_id == -1 {
+        tu::insert_test_filter().await;
+    }
     
     println!("running filter benchmark...");
 
@@ -96,5 +105,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("   average speed: {} alerts filtered / sec", average);
     println!("   fastest run: {} @ {}\n   slowest run: {} @ {}", min_time.0, min_time.1, max_time.0, max_time.1);
     println!("=========================");
+
+    // if filter_id is -1, then we are running the benchmark on the test filter
+    // we remove it from the database
+    if filter_id == -1 {
+        tu::remove_test_filter().await;
+    }
+
     Ok(())
 }

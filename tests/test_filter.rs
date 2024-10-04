@@ -1,9 +1,8 @@
-use boom::{filter, conf};
 use std::num::NonZero;
-mod testing_util;
-use testing_util::{self as tu};
 use mongodb::bson::{Document, doc};
 use redis::AsyncCommands;
+
+use boom::{filter, conf, testing_util as tu};
 
 #[tokio::test]
 async fn test_build_filter() {

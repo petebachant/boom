@@ -2,7 +2,7 @@ hello: world
 database:
   host: localhost
   port: 27017
-  name: boom
+  name: boom_test
   max_pool_size: 200
   replica_set: null
   username: mongoadmin

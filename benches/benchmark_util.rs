@@ -17,7 +17,7 @@ pub async fn setup_benchmark(queue_name: &str) -> Result<(), Box<dyn std::error:
 }
 
 pub async fn drop_alert_collections() -> Result<(), Box<dyn std::error::Error>> {
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     db.collection::<mongodb::bson::Document>("alerts").drop().await?;
     db.collection::<mongodb::bson::Document>("alerts_aux").drop().await?;
@@ -27,7 +27,7 @@ pub async fn drop_alert_collections() -> Result<(), Box<dyn std::error::Error>> 
 
 async fn alert_worker(output_queue_name: &str) {
 
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
 
     let xmatch_configs = conf::build_xmatch_configs(&config_file, "ZTF");
     let db: mongodb::Database = conf::build_db(&config_file).await;

@@ -1,6 +1,6 @@
-use boom::conf;
-use boom::alert;
-use boom::types;
+use crate::conf;
+use crate::alert;
+use crate::types;
 use mongodb::bson::doc;
 use redis::AsyncCommands;
 // Utility for unit tests

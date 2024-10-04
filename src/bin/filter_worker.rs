@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     sig_int_handler(Arc::clone(&interrupt)).await;
 
     // connect to mongo and redis
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let client_redis = redis::Client::open(
         "redis://localhost:6379".to_string()).unwrap();
