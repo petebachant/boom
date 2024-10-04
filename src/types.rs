@@ -5,8 +5,7 @@ use apache_avro::{Reader, Schema, from_avro_datum};
 use config::Value;
 use mongodb::bson::doc;
 use mongodb::bson::to_document;
-
-use crate::coordinates;
+use flare::spatial::{radec2lb, deg2hms, deg2dms};
 
 pub fn ztf_alert_schema() -> Option<Schema> {
     // infer the schema from an avro file directly,
@@ -951,13 +950,13 @@ impl AlertNoHistory {
     // add a function to convert the AlertNoHistory to a mongodb document
     pub fn mongify(self) -> mongodb::bson::Document {
         let mut doc = to_document(&self).unwrap();
-        let (l, b) = coordinates::radec2lb(self.candidate.ra, self.candidate.dec);
+        let (l, b) = radec2lb(self.candidate.ra, self.candidate.dec);
         let coordinates = doc! {
             "radec_geojson": {
                 "type": "Point",
                 "coordinates": [self.candidate.ra - 180.0, self.candidate.dec]
             },
-            "radec_str": [coordinates::deg2hms(self.candidate.ra), coordinates::deg2dms(self.candidate.dec)],
+            "radec_str": [deg2hms(self.candidate.ra), deg2dms(self.candidate.dec)],
             "l": l,
             "b": b
         };

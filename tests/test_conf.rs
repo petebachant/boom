@@ -62,8 +62,7 @@ fn test_build_xmatch_configs() {
 async fn test_build_db() {
     let conf = conf::load_config("tests/data/config.test.yaml");
     let conf = conf.unwrap();
-    let initialize = true;
-    let db = conf::build_db(&conf, initialize).await;
+    let db = conf::build_db(&conf).await;
 
     let collections = db.list_collection_names().await.unwrap();
 

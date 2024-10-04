@@ -11,7 +11,7 @@ pub async fn drop_alert_collections(
     alert_aux_collection_name: &str
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config_file = conf::load_config("./config.yaml").unwrap();
-    let db = conf::build_db(&config_file, true).await;
+    let db = conf::build_db(&config_file).await;
     db.collection::<mongodb::bson::Document>(alert_collection_name).drop().await?;
     db.collection::<mongodb::bson::Document>(alert_aux_collection_name).drop().await?;
     Ok(())
@@ -61,7 +61,7 @@ pub async fn alert_worker(
     let config_file = conf::load_config("./config.yaml").unwrap();
     let stream_name = "ZTF";
     let xmatch_configs = conf::build_xmatch_configs(&config_file, stream_name);
-    let db: mongodb::Database = conf::build_db(&config_file, true).await;
+    let db: mongodb::Database = conf::build_db(&config_file).await;
 
     if let Err(e) = db.list_collection_names().await {
         println!("Error connecting to the database: {}", e);
@@ -104,7 +104,7 @@ pub async fn alert_worker(
                         // remove the alert from the queue
                         con.lrem::<&str, Vec<u8>, isize>(&input_packet_queue_temp, 1, value[0].clone()).await.unwrap();
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         // println!("Error processing alert: {}, requeueing", e);
                         // put it back in the input_packet_queue, to the left (pop from the right, push to the left)
                         con.lrem::<&str, Vec<u8>, isize>(&input_packet_queue_temp, 1, value[0].clone()).await.unwrap();
@@ -152,7 +152,7 @@ pub async fn insert_test_filter() {
       };
 
     let config_file = conf::load_config("./config.yaml").unwrap();
-    let db = conf::build_db(&config_file, true).await;
+    let db = conf::build_db(&config_file).await;
     let x = db.collection::<mongodb::bson::Document>("filters").insert_one(filter_obj).await;
     match x {
         Err(e) => {
@@ -165,7 +165,7 @@ pub async fn insert_test_filter() {
 // remove test filter with id -1 from the database
 pub async fn remove_test_filter() {
     let config_file = conf::load_config("./config.yaml").unwrap();
-    let db = conf::build_db(&config_file, true).await;
+    let db = conf::build_db(&config_file).await;
     let _ = db.collection::<mongodb::bson::Document>("filters").delete_one(doc!{"filter_id": -1}).await;
 }
 
