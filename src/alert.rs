@@ -1,9 +1,8 @@
+use flare::time::Time;
 use mongodb::bson::doc;
 
 use crate::spatial;
 use crate::types;
-
-use flare::time::Time;
 
 pub async fn process_alert(
     avro_bytes: Vec<u8>,

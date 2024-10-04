@@ -3,9 +3,9 @@ use std::io::Read;
 use apache_avro::from_value;
 use apache_avro::{Reader, Schema, from_avro_datum};
 use config::Value;
+use flare::spatial::{radec2lb, deg2hms, deg2dms};
 use mongodb::bson::doc;
 use mongodb::bson::to_document;
-use flare::spatial::{radec2lb, deg2hms, deg2dms};
 
 pub fn ztf_alert_schema() -> Option<Schema> {
     // infer the schema from an avro file directly,

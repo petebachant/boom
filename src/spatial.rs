@@ -1,6 +1,6 @@
+use flare::spatial::great_circle_distance;
 use futures::stream::StreamExt;
 use mongodb::bson::doc;
-use flare::spatial::{in_ellipse, great_circle_distance};
 
 use crate::types;
 
@@ -136,12 +136,11 @@ pub async fn xmatch(
                     } else {
                         distance_max * (0.05 / doc_z) / 3600.0 // to degrees
                     };
-                    if in_ellipse(ra, dec, xmatch_ra, xmatch_dec, cm_radius, 1.0, 0.0) {
-                        // calculate the angular separation
-                        let angular_separation =
-                            great_circle_distance(ra, dec, xmatch_ra, xmatch_dec) * 3600.0;
+                    let angular_separation = great_circle_distance(ra, dec, xmatch_ra, xmatch_dec) * 3600.0;
+
+                    if angular_separation < cm_radius {
                         // calculate the distance between objs in kpc
-                        //let distance_kpc = angular_separation * (doc_z / 0.05);
+                        // let distance_kpc = angular_separation * (doc_z / 0.05);
                         let distance_kpc = if doc_z > 0.005 {
                             angular_separation * (doc_z / 0.05)
                         } else {
@@ -188,9 +187,8 @@ pub async fn xmatch(
                             .atan()
                             .to_degrees()
                     };
-                    if in_ellipse(ra, dec, xmatch_ra, xmatch_dec, cm_radius, 1.0, 0.0) {
-                        // here we don't * 3600.0 yet because we need to calculate the distance in kpc first
-                        let angular_separation = great_circle_distance(ra, dec, xmatch_ra, xmatch_dec);
+                    let angular_separation = great_circle_distance(ra, dec, xmatch_ra, xmatch_dec);
+                    if angular_separation < cm_radius {
                         // calculate the distance between objs in kpc
                         let distance_kpc = if doc_mpc > 0.005 {
                             angular_separation.to_radians() * (doc_mpc * 1000.0)
