@@ -1,8 +1,8 @@
+use flare::time::Time;
 use mongodb::bson::doc;
 
 use crate::spatial;
 use crate::types;
-use crate::time;
 
 pub async fn process_alert(
     avro_bytes: Vec<u8>,
@@ -44,7 +44,7 @@ pub async fn process_alert(
     
     // insert the alert into the alerts collection (with a created_at timestamp)
     let mut alert_doc = alert_no_history.mongify();
-    alert_doc.insert("created_at", time::jd_now());
+    alert_doc.insert("created_at", Time::now().to_jd());
     alert_collection.insert_one(alert_doc).await.unwrap();
 
     // - new objects - new entry with prv_candidates, fp_hists, xmatches
@@ -55,7 +55,7 @@ pub async fn process_alert(
     let fp_hist_doc = fp_hist.unwrap_or(vec![]).into_iter().map(|x| x.mongify()).collect::<Vec<_>>();
 
     if alert_aux_collection.find_one(doc! { "_id": &object_id }).await.unwrap().is_none() {
-        let jd_timestamp = time::jd_now();
+        let jd_timestamp = Time::now().to_jd();
         let mut doc = doc! {
             "_id": &object_id,
             "prv_candidates": prv_candidates_doc,
@@ -73,7 +73,7 @@ pub async fn process_alert(
                 "fp_hists": { "$each": fp_hist_doc }
             },
             "$set": {
-                "updated_at": time::jd_now(),
+                "updated_at": Time::now().to_jd(),
             }
         };
 

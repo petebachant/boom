@@ -30,7 +30,7 @@ async fn main() {
     let xmatch_configs = conf::build_xmatch_configs(&config_file, stream_name);
 
     // DATABASE
-    let db: mongodb::Database = conf::build_db(&config_file, true).await;
+    let db: mongodb::Database = conf::build_db(&config_file).await;
     if let Err(e) = db.list_collection_names().await {
         println!("Error connecting to the database: {}", e);
         return;

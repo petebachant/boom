@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // connect to mongo and redis
     let config_file = conf::load_config("./config.yaml").unwrap();
-    let db = conf::build_db(&config_file, true).await;
+    let db = conf::build_db(&config_file).await;
     let client_redis = redis::Client::open(
         "redis://localhost:6379".to_string()).unwrap();
     let mut con = client_redis

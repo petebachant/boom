@@ -1,103 +1,8 @@
+use flare::spatial::great_circle_distance;
 use futures::stream::StreamExt;
 use mongodb::bson::doc;
 
 use crate::types;
-
-const DEGRA: f64 = std::f64::consts::PI / 180.0;
-
-pub fn great_circle_distance(ra1_deg: f64, dec1_deg: f64, ra2_deg: f64, dec2_deg: f64) -> f64 {
-    let ra1 = ra1_deg * DEGRA;
-    let dec1 = dec1_deg * DEGRA;
-    let ra2 = ra2_deg * DEGRA;
-    let dec2 = dec2_deg * DEGRA;
-    let delta_ra = (ra2 - ra1).abs();
-    let mut distance = (dec2.cos() * delta_ra.sin()).powi(2) // let mut distance = (dec2.sin() * delta_ra.cos()).powi(2)
-        + (dec1.cos() * dec2.sin() - dec1.sin() * dec2.cos() * delta_ra.cos()).powi(2);
-    distance = distance
-        .sqrt()
-        .atan2(dec1.sin() * dec2.sin() + dec1.cos() * dec2.cos() * delta_ra.cos());
-    distance * 180.0 / std::f64::consts::PI
-}
-
-pub fn in_ellipse(
-    alpha: f64,
-    delta0: f64,
-    alpha1: f64,
-    delta01: f64,
-    d0: f64,
-    axis_ratio: f64,
-    pao: f64,
-) -> bool {
-    let d_alpha = (alpha1 - alpha) * DEGRA;
-    let delta1 = delta01 * DEGRA;
-    let delta = delta0 * DEGRA;
-    let pa = pao * DEGRA;
-    let d = d0 * DEGRA;
-    // e is the sqrt of 1.0 - axis_ratio^2
-    let e = (1.0 - axis_ratio.powi(2)).sqrt();
-
-    let t1 = d_alpha.cos();
-    let t22 = d_alpha.sin();
-    let t3 = delta1.cos();
-    let t32 = delta1.sin();
-    let t6 = delta.cos();
-    let t26 = delta.sin();
-    let t9 = d.cos();
-    let t55 = d.sin();
-
-    if t3 * t6 * t1 + t32 * t26 < 0.0 {
-        return false;
-    }
-
-    let t2 = t1 * t1;
-    let t4 = t3 * t3;
-    let t5 = t2 * t4;
-    let t7 = t6 * t6;
-    let t8 = t5 * t7;
-    let t10 = t9 * t9;
-    let t11 = t7 * t10;
-    let t13 = pa.cos();
-    let t14 = t13 * t13;
-    let t15 = t14 * t10;
-    let t18 = t7 * t14;
-    let t19 = t18 * t10;
-
-    let t24 = pa.sin();
-
-    let t31 = t1 * t3;
-
-    let t36 = 2.0 * t31 * t32 * t26 * t6;
-    let t37 = t31 * t32;
-    let t38 = t26 * t6;
-    let t45 = t4 * t10;
-
-    let t56 = t55 * t55;
-    let t57 = t4 * t7;
-
-    let t60 = -t8 + t5 * t11 + 2.0 * t5 * t15
-        - t5 * t19
-        - 2.0 * t1 * t4 * t22 * t10 * t24 * t13 * t26
-        - t36
-        + 2.0 * t37 * t38 * t10
-        - 2.0 * t37 * t38 * t15
-        - t45 * t14
-        - t45 * t2
-        + 2.0 * t22 * t3 * t32 * t6 * t24 * t10 * t13
-        - t56
-        + t7
-        - t11
-        + t4
-        - t57
-        + t57 * t10
-        + t19
-        - t18 * t45;
-
-    let t61 = e * e;
-    let t63 = t60 * t61 + t8 + t57 - t4 - t7 + t56 + t36;
-
-    let inside = t63 > 0.0;
-    inside
-}
 
 pub async fn xmatch(
     ra: f64,
@@ -231,12 +136,11 @@ pub async fn xmatch(
                     } else {
                         distance_max * (0.05 / doc_z) / 3600.0 // to degrees
                     };
-                    if in_ellipse(ra, dec, xmatch_ra, xmatch_dec, cm_radius, 1.0, 0.0) {
-                        // calculate the angular separation
-                        let angular_separation =
-                            great_circle_distance(ra, dec, xmatch_ra, xmatch_dec) * 3600.0;
+                    let angular_separation = great_circle_distance(ra, dec, xmatch_ra, xmatch_dec) * 3600.0;
+
+                    if angular_separation < cm_radius {
                         // calculate the distance between objs in kpc
-                        //let distance_kpc = angular_separation * (doc_z / 0.05);
+                        // let distance_kpc = angular_separation * (doc_z / 0.05);
                         let distance_kpc = if doc_z > 0.005 {
                             angular_separation * (doc_z / 0.05)
                         } else {
@@ -283,9 +187,8 @@ pub async fn xmatch(
                             .atan()
                             .to_degrees()
                     };
-                    if in_ellipse(ra, dec, xmatch_ra, xmatch_dec, cm_radius, 1.0, 0.0) {
-                        // here we don't * 3600.0 yet because we need to calculate the distance in kpc first
-                        let angular_separation = great_circle_distance(ra, dec, xmatch_ra, xmatch_dec);
+                    let angular_separation = great_circle_distance(ra, dec, xmatch_ra, xmatch_dec);
+                    if angular_separation < cm_radius {
                         // calculate the distance between objs in kpc
                         let distance_kpc = if doc_mpc > 0.005 {
                             angular_separation.to_radians() * (doc_mpc * 1000.0)
