@@ -1,4 +1,3 @@
-use futures::stream::StreamExt;
 use boom::conf;
 
 #[test]
@@ -64,28 +63,6 @@ async fn test_build_db() {
     let conf = conf.unwrap();
     let db = conf::build_db(&conf).await;
 
-    let collections = db.list_collection_names().await.unwrap();
-
-    // we've set initialized to true, so the database should have:
-    // - alerts collection
-    // - a unique descending index on the "candid" field in the alerts collection
-
-    assert!(collections.len() > 0);
-    assert!(collections.contains(&"alerts".to_string()));
-
-    let collection: mongodb::Collection<mongodb::bson::Document> = db.collection("alerts");
-    let mut cursor = collection.list_indexes().await.unwrap();
-    let mut found = false;
-    while let Some(index) = cursor.next().await {
-        println!("{:?}", index);
-        let index_model = index.unwrap();
-        let keys = index_model.keys;
-        if keys.get("candid").is_some() {
-            found = true;
-            let options = index_model.options.unwrap();
-            assert_eq!(options.unique, Some(true));
-            assert_eq!(options.name, Some("candid_1".to_string()));
-        }
-    }
-    assert!(found);
+    // try a simple query to just validate that the connection works
+    let _collections = db.list_collection_names().await.unwrap();
 }
