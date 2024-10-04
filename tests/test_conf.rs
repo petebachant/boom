@@ -2,7 +2,7 @@ use boom::conf;
 
 #[test]
 fn test_load_config() {
-    let conf = conf::load_config("tests/data/config.test.yaml");
+    let conf = conf::load_config("tests/config.test.yaml");
     assert!(conf.is_ok());
 
     let conf = conf.unwrap();
@@ -26,7 +26,7 @@ fn test_load_config() {
 
 #[test]
 fn test_build_xmatch_configs() {
-    let conf = conf::load_config("tests/data/config.test.yaml");
+    let conf = conf::load_config("tests/config.test.yaml");
 
     let conf = conf.unwrap();
 
@@ -59,7 +59,7 @@ fn test_build_xmatch_configs() {
 
 #[tokio::test]
 async fn test_build_db() {
-    let conf = conf::load_config("tests/data/config.test.yaml");
+    let conf = conf::load_config("tests/config.test.yaml");
     let conf = conf.unwrap();
     let db = conf::build_db(&conf).await;
 

@@ -3,7 +3,7 @@ use boom::conf;
 
 #[tokio::test]
 async fn test_xmatch() {
-    let conf = conf::load_config("tests/data/config.test.yaml").unwrap();
+    let conf = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&conf).await;
 
     let catalog_xmatch_configs = conf::build_xmatch_configs(&conf, "ZTF");
