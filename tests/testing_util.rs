@@ -70,8 +70,6 @@ pub async fn alert_worker(
     let alert_collection = db.collection(alert_collection_name);
     let alert_aux_collection = db.collection(alert_aux_collection_name);
 
-    // let packet_queue = "testalertpacketqueue";
-    // let packet_queue_temp = "testalertpacketqueuetemp";
     let input_packet_queue_temp = format!("{}_temp", input_packet_queue);
     let schema = types::ztf_alert_schema().unwrap();
 
@@ -94,7 +92,6 @@ pub async fn alert_worker(
                 ).await;
                 match candid {
                     Ok(Some(candid)) => {
-                        // println!("Processed alert with candid: {}, queueing for classification", candid);
                         // queue the candid for processing by the classifier
                         con.lpush::<&str, i64, isize>(&output_packet_queue, candid).await.unwrap();
                         con.lrem::<&str, Vec<u8>, isize>(&input_packet_queue_temp, 1, value[0].clone()).await.unwrap();
@@ -105,7 +102,6 @@ pub async fn alert_worker(
                         con.lrem::<&str, Vec<u8>, isize>(&input_packet_queue_temp, 1, value[0].clone()).await.unwrap();
                     }
                     Err(_e) => {
-                        // println!("Error processing alert: {}, requeueing", e);
                         // put it back in the input_packet_queue, to the left (pop from the right, push to the left)
                         con.lrem::<&str, Vec<u8>, isize>(&input_packet_queue_temp, 1, value[0].clone()).await.unwrap();
                         con.lpush::<&str, Vec<u8>, isize>(&input_packet_queue, value[0].clone()).await.unwrap();

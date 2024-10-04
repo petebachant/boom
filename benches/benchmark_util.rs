@@ -60,7 +60,6 @@ async fn alert_worker(output_queue_name: &str) {
                 ).await;
                 match candid {
                     Ok(Some(candid)) => {
-                        // println!("Processed alert with candid: {}, queueing for classification", candid);
                         // queue the candid for processing by the classifier
                         con.lpush::<&str, i64, isize>(output_queue_name, candid).await.unwrap();
                         con.lrem::<&str, Vec<u8>, isize>("benchalertpacketqueuetemp", 1, value[0].clone()).await.unwrap();
@@ -71,7 +70,6 @@ async fn alert_worker(output_queue_name: &str) {
                         con.lrem::<&str, Vec<u8>, isize>("benchalertpacketqueuetemp", 1, value[0].clone()).await.unwrap();
                     }
                     Err(_) => {
-                        // println!("Error processing alert: {}, requeueing", e);
                         // put it back in the alertpacketqueue, to the left (pop from the right, push to the left)
                         con.lrem::<&str, Vec<u8>, isize>("benchalertpacketqueuetemp", 1, value[0].clone()).await.unwrap();
                         con.lpush::<&str, Vec<u8>, isize>("benchalertpacketqueue", value[0].clone()).await.unwrap();

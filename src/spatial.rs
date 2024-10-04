@@ -174,9 +174,7 @@ pub async fn xmatch(
                     };
                     if doc_mpc_option.is_none() {
                         // also print the distance key we are using
-                        println!("Mpc is none using {}", distance_key);
-                        // print the document _id
-                        println!("{:?}", xmatch_doc.get("_id"));
+                        println!("Mpc is none using {} (doc _id: {})", distance_key, xmatch_doc.get("_id").unwrap());
                         continue;
                     }
                     let doc_mpc = doc_mpc_option.unwrap();
