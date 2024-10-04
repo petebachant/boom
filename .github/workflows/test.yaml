@@ -12,6 +12,15 @@ jobs:
   test:
     name: Build & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        test_subset:
+          [
+            "unit_tests",
+            "benchmark",
+          ]
     steps:
     - uses: actions/checkout@v4
     - name: Setup Rust
@@ -32,7 +41,9 @@ jobs:
         sed -i 's/password: mongoadminsecret/password:/g' tests/config.test.yaml
     - name: Build
       run: cargo build --verbose
-    - name: Run tests
+    - name: Tests
+      if: ${{ matrix.test_subset == 'unit_tests' }}
       run: cargo test --verbose
-    - name: Run the filter benchmark
+    - name: Filter benchmark
+      if: ${{ matrix.test_subset == 'benchmark' }}
       run: cargo bench filter_benchmark --
