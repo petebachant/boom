@@ -1,13 +1,12 @@
-use boom::{filter, conf};
 use std::num::NonZero;
-mod testing_util;
-use testing_util::{self as tu};
 use mongodb::bson::{Document, doc};
 use redis::AsyncCommands;
 
+use boom::{filter, conf, testing_util as tu};
+
 #[tokio::test]
 async fn test_build_filter() {
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     tu::insert_test_filter().await;
     let filter = filter::Filter::build(-1, &db).await.unwrap();
@@ -32,7 +31,7 @@ async fn test_build_filter() {
 async fn test_run_filter() {
 
     tu::insert_test_filter().await;
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let mut thisfilter = filter::Filter::build(-1, &db).await.unwrap();
     let _ = tu::remove_test_filter().await;
@@ -81,7 +80,7 @@ async fn test_run_filter() {
 #[tokio::test]
 async fn test_filter_no_alerts() {
     tu::insert_test_filter().await;
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let mut thisfilter = filter::Filter::build(-1, &db).await.unwrap();
     let _ = tu::remove_test_filter().await;
@@ -114,7 +113,7 @@ async fn test_filter_no_alerts() {
 
 #[tokio::test]
 async fn test_no_filter_found() {
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let thisfilter = filter::Filter::build(-2, &db).await;
     match thisfilter {
@@ -130,7 +129,7 @@ async fn test_no_filter_found() {
 
 #[tokio::test]
 async fn test_filter_found() {
-    let config_file = conf::load_config("./config.yaml").unwrap();
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     tu::insert_test_filter().await;
     let thisfilter = filter::Filter::build(-1, &db).await;

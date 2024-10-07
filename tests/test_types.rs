@@ -186,7 +186,7 @@ fn test_catalogxmatchconfig() {
     assert_eq!(projection, ps1_projection);
 
     // validate the from_config method
-    let config = conf::load_config("tests/data/config.test.yaml").unwrap();
+    let config = conf::load_config("tests/config.test.yaml").unwrap();
     let crossmatches = config.get_table("crossmatch").unwrap();
     let crossmatches_ztf = crossmatches.get(&"ZTF".to_lowercase()).cloned().unwrap();
     let crossmatches_ztf = crossmatches_ztf.into_array().unwrap();
