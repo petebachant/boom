@@ -1,5 +1,6 @@
 import time
-
+from sys import exit
+import signal
 import redis
 from pymongo import UpdateOne
 
@@ -13,6 +14,14 @@ PERMISSIONS_PER_STREAM = {
     "ZTF": [1,2,3]
 }
 
+interruption_flag = False
+
+def signal_handler(signum, frame):
+    signal.signal(signum, signal.SIG_IGN)
+    print("sig int received, finishing up...")
+    global interruption_flag
+    interruption_flag = True
+
 if __name__ == "__main__":
     import argparse
 
@@ -24,6 +33,8 @@ if __name__ == "__main__":
     # Load the config
     config_file = args.config if args.config else "config.yaml"
     config = load_config([config_file])
+
+    signal.signal(signal.SIGINT, signal_handler)
 
     stream = args.stream
     if stream not in ALLOWED_STREAMS:
@@ -45,6 +56,9 @@ if __name__ == "__main__":
     bulk_classifier = ACAI_H_AlertClassifierBulk(model_path)
 
     while True:
+        if interruption_flag:
+            exit(0)
+
         start = time.time()
 
         # Retrieve 1000 candids from Redis
@@ -55,7 +69,6 @@ if __name__ == "__main__":
             continue
         candids = [int(candid) for candid in candids]
         print(f"Retrieved {len(candids)} values from Redis")
-
 
         # Query MongoDB for the corresponding alerts
         alerts = alerts_collection.find({"candid": {"$in": candids}})

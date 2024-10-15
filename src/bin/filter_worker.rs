@@ -1,6 +1,4 @@
-use redis::AsyncCommands;
-use redis::streams::{StreamReadOptions,StreamReadReply};
-use std::borrow::Borrow;
+use redis::{AsyncCommands, streams::StreamReadOptions};
 use std::{
     env, 
     error::Error,
@@ -8,44 +6,7 @@ use std::{
     collections::HashMap,
 };
 
-use boom::{conf, filter};
-
-async fn get_candids_from_stream(con: &mut redis::aio::MultiplexedConnection, stream: &str, options: &StreamReadOptions) -> Vec<i64> {
-    let result: Option<StreamReadReply> = con.xread_options(
-        &[stream.to_owned()], &[">"], options).await.unwrap();
-    let mut candids: Vec<i64> = Vec::new();
-    if let Some(reply) = result {
-        for stream_key in reply.keys {
-            let xread_ids = stream_key.ids;
-            for stream_id in xread_ids {
-                let candid = stream_id.map.get("candid").unwrap();
-                // candid is a Value type, so we need to convert it to i64
-                match candid {
-                    redis::Value::BulkString(x) => {
-                        // then x is a Vec<u8> type, so we need to convert it an i64
-                        let x = String::from_utf8(x.to_vec()).unwrap().parse::<i64>().unwrap();
-                        // append to candids
-                        candids.push(x);
-                    },
-                    _ => {
-                        println!("Candid unknown type: {:?}", candid);
-                    }
-                }
-            }
-        }
-    }
-    candids
-}
-
-// intercepts interrupt signals and sets boolean to true
-async fn sig_int_handler(v: Arc<Mutex<bool>>) {
-    tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.unwrap();
-        println!("Filter worker interrupted. Finishing up...");
-        let mut v = v.try_lock().unwrap();
-        *v = true;
-    });
-}
+use boom::{conf, filter, worker_util};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -64,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // setup signal handler thread
     let interrupt = Arc::new(Mutex::new(false));
-    sig_int_handler(Arc::clone(&interrupt)).await;
+    worker_util::sig_int_handler(Arc::clone(&interrupt)).await;
 
     // connect to mongo and redis
     let config_file = conf::load_config("tests/config.test.yaml").unwrap();
@@ -143,16 +104,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     loop {
         // check if worker has been interrupted
-        match interrupt.try_lock() {
-            Ok(x) => {
-                if *x { return Ok(()); }
-            },
-            _ => {}
-        };
+        worker_util::check_exit(Arc::clone(&interrupt));
 
         for (perm, filters) in &mut filter_table {
             for filter in filters {
-                let candids = get_candids_from_stream(
+                let candids = worker_util::get_candids_from_stream(
                     &mut con,
                     &redis_streams[&perm],
                     &read_options[&filter.id]).await;

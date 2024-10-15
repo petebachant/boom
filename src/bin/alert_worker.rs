@@ -1,9 +1,7 @@
 use redis::AsyncCommands;
 use std::env;
-
-use boom::conf;
-use boom::alert;
-use boom::types::ztf_alert_schema;
+use boom::{worker_util, conf, alert, types::ztf_alert_schema};
+use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() {
@@ -16,6 +14,9 @@ async fn main() {
         println!("Usage: alert_worker <stream_name> <config_file>, where config_file is optional");
         return;
     }
+
+    let interrupt_flag = Arc::new(Mutex::new(false));
+    worker_util::sig_int_handler(Arc::clone(&interrupt_flag)).await;
 
     let stream_name = &args[1];
 
@@ -67,6 +68,9 @@ async fn main() {
     let mut count = 0;
     let start = std::time::Instant::now();
     loop {
+        // check for interruption signal
+        worker_util::check_exit(Arc::clone(&interrupt_flag)); 
+        // retrieve candids from redis
         let result: Option<Vec<Vec<u8>>> = con.rpoplpush(&queue_name, &queue_temp_name).await.unwrap();
         match result {
             Some(value) => {
@@ -90,7 +94,6 @@ async fn main() {
                         con.lpush::<&str, Vec<u8>, isize>(&queue_name, value[0].clone()).await.unwrap();
                     }
                 }
-
                 if count > 1 && count % 100 == 0 {
                     let elapsed = start.elapsed().as_secs();
                     println!("\nProcessed {} {} alerts in {} seconds, avg: {:.4} alerts/s\n", count, stream_name, elapsed, count as f64 / elapsed as f64);
