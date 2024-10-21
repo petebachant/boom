@@ -33,7 +33,9 @@ docker-compose up -d
 
 ## Usage
 
-- First, make sure that `Redis`/`Valkey` and `MongoDB` are running. You can easily run them in docker with the command above. Then, you can start the **fake** kafka consumer (that reads alerts from a file instead of a kafka topic) with:
+- First, make a copy of `config.default.yaml` and call it `config.yaml`
+
+- Next, make sure that `Redis`/`Valkey` and `MongoDB` are running. You can easily run them in docker with the command above. Then, you can start the **fake** kafka consumer (that reads alerts from a file instead of a kafka topic) with:
     ```bash
     cargo run --bin fake_kafka_consumer <date_in_YYYMMDD_format>
     ```
