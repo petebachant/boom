@@ -67,6 +67,15 @@ docker-compose up -d
 
     This will start a filter worker which runs filters (MongoDB aggregation pipelines) on alerts and sends the results to an output redis queue. The filters are retrieved from the database and each filter reads from a stream of incoming data matching its highest data access permissions.
 
+- Alternatively, after running the **fake** kafka consumer, boom can be run using the scheduler
+    ```bash
+    cargo run --release --bin scheduler <stream_name>
+    ```
+
+    This starts the real-time master process manager which spawns in pipeline worker threads and
+    has ability to send commands to each worker. In the future the scheduler will be used to
+    contiuously evaluate the data load and data throughput in order to spawn or kill workers
+    in the pipeline to maintain maximimal efficiency and reduce any bottlenecks.
 
 ## Contributing
 
