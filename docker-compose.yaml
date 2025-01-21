@@ -1,0 +1,47 @@
+version: "3.7"
+
+volumes:
+  mongodb:
+  valkey:
+
+networks:
+  boom:
+
+services:
+  mongo:
+    image: mongo:7.0
+    hostname: mongo
+    expose:
+      - "27017"
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=mongoadmin
+      - MONGO_INITDB_ROOT_PASSWORD=mongoadminsecret
+    volumes:
+      - mongodb:/data/db
+    restart: always
+    networks:
+      - boom
+    healthcheck:
+      test: test $$(echo "rs.initiate().ok || rs.status().ok" | mongo -u $${MONGO_INITDB_ROOT_USERNAME} -p $${MONGO_INITDB_ROOT_PASSWORD} --quiet) -eq 1
+      interval: 10s
+      start_period: 20s
+  valkey:
+    image: valkey/valkey:7.2.6
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+      - VALKEY_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    ports:
+      - '6379:6379'
+    volumes:
+      - valkey:/data
+    restart: always
+    networks:
+      - boom
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

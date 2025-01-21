@@ -1,0 +1,53 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        test_subset:
+          [
+            "unit_tests",
+            "benchmark",
+          ]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: true
+        clean: false
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Configure cache
+      uses: Swatinem/rust-cache@v2
+    - name: Start MongoDB
+      uses: supercharge/mongodb-github-action@1.11.0
+      with:
+        mongodb-version: 7.0.0
+    - uses: shogo82148/actions-setup-redis@v1
+      with:
+        redis-version: "7.x"
+    - run: redis-cli ping
+    - name: Edit test config
+      run: |
+        sed -i 's/username: mongoadmin/username:/g' tests/config.test.yaml
+        sed -i 's/password: mongoadminsecret/password:/g' tests/config.test.yaml
+    - name: Build
+      run: cargo build --verbose
+    - name: Tests
+      if: ${{ matrix.test_subset == 'unit_tests' }}
+      run: cargo test --verbose
+    - name: Filter benchmark
+      if: ${{ matrix.test_subset == 'benchmark' }}
+      run: cargo bench filter_benchmark --
