@@ -1,5 +1,7 @@
 # BOOM (Burst & Outburst Observations Monitor)
 
+### *WARNING: This README is outdated, and will be revised soon. A number of instructions are still valid, but things such as the TODO list should be ignored*
+
 ## Description
 
 BOOM is multiple things at once:
