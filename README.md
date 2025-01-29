@@ -88,7 +88,7 @@ docker-compose down
 
 When you stop the scheduler, it will attempt to gracefully stop all the workers by sending them interrupt signals. This is still a work in progress, so you might see some error handling taking place in the logs.
 
-**In the next version of the README, we'll provide the user with example scripts to read the output of BOOM (i.e. the alerts that passed the filters) from Kafka topics. For now, alerts are send back to Redis if they pass any filters.**
+**In the next version of the README, we'll provide the user with example scripts to read the output of BOOM (i.e. the alerts that passed the filters) from Kafka topics. For now, alerts are send back to `Redis`/`valkey` if they pass any filters.**
 
 ## Tests
 
