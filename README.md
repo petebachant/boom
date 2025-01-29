@@ -2,7 +2,7 @@
 
 ## Description
 
-BOOM is an alert broker. What sets it appart from other alert brokers is that it is written to be modular, scalable w/ distributed computing, and performant. Essentially, the pipeline is composed of multiple workers, each with a specific task:
+BOOM is an alert broker. What sets it appart from other alert brokers is that it is written to be modular, scalable, and performant. Essentially, the pipeline is composed of multiple workers, each with a specific task:
 - A fake kafka consumer, reading alerts from astronomical survey(s) kafka topics, and writing them to a `Redis`/`Valkey` in-memory queue.
 - Followed by Alert Ingestion workers, reading alerts from the `Redis`/`Valkey` queue, formating them, enriching them with crossmatches with archival astronomical catalogs and other surveys, and writing them to a `MongoDB` database.
 - Followed by ML workers, running alerts through a series of ML classifiers, and writing the results back to the database.
