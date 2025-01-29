@@ -103,7 +103,7 @@ The test suite also runs automagically on every push to the repository, and on e
 
 ## Contributing
 
-We welcome contributions! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) (TBD) file for more information. We rely on GitHub issues to track bugs and feature requests. If you have a bug or a feature request, please open an issue.
+We welcome contributions! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) (TBD) file for more information. We rely on [GitHub issues](https://github.com/boom-astro/boom/issues) to track bugs and feature requests.
 
 ## Implementation details:
 
