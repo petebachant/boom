@@ -16,7 +16,7 @@ BOOM also comes with an API, with is currently being developed in its own GitHub
 
 We support running boom on UNIX systems: MacOS and any Linux distro. You'll need:
 
-- `Docker` and `docker-compose` installed on your system, we will use it to run the database, cache/task queue, and Kafka.
+- `Docker` and `docker-compose`: used to run the database, cache/task queue, and Kafka;
 - `Rust` (a systems programming language) `>= 1.55.0`;
 - `Python` (a high-level programming language) `>= 3.10`: we recommend using `uv` to create a virtual environment with the required Python dependencies.
 
