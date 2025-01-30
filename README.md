@@ -8,7 +8,7 @@ BOOM is an alert broker. What sets it appart from other alert brokers is that it
 - Followed by ML workers, running alerts through a series of ML classifiers, and writing the results back to the database.
 - And finally followed by Filter workers, running user-defined filters on the alerts, and sending the results to Kafka topics for other services to consume.
 
-All of the workers are managed by a Scheduler, which can spawn or kill workers of each type. Currently the number of workers is static, but we are working on a way to dynamically scale the number of workers based on the load of the system.
+Workers are managed by a Scheduler that can spawn or kill workers of each type. Currently, the number of workers is static, but we are working on dynamically scaling the number of workers based on the load of the system.
 
 BOOM also comes with an API, with is currently being developed in its own GitHub repo. The API will allow users to query the database at any time, and to define their own filters for the system to run them on the alerts in real-time.
 
