@@ -42,7 +42,7 @@ Let's go through some of the installation steps, per system:
     source .venv/bin/activate
     uv pip install -r requirements.txt
     ```
-- Next, make a copy of the default config file `config.default.yaml`, and call it `config.yaml`, you can do this with:
+- Next, copy the default config file, `config.default.yaml`, to `config.yaml`:
     ```bash
     cp config.default.yaml config.yaml
     ```
