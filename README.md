@@ -6,7 +6,7 @@ BOOM is an alert broker. What sets it appart from other alert brokers is that it
 - A fake kafka consumer, reading alerts from astronomical survey(s) kafka topics, and writing them to a `Redis`/`Valkey` in-memory queue.
 - Followed by Alert Ingestion workers, reading alerts from the `Redis`/`Valkey` queue, formating them, enriching them with crossmatches with archival astronomical catalogs and other surveys, and writing them to a `MongoDB` database.
 - Followed by ML workers, running alerts through a series of ML classifiers, and writing the results back to the database.
-- And finally followed by Filter workers, running user-defined filters on the alerts, and sending the results to Kafka topics for other services to consume.
+4. Filter workers, running user-defined filters on the alerts, and sending the results to Kafka topics for other services to consume.
 
 Workers are managed by a Scheduler that can spawn or kill workers of each type. Currently, the number of workers is static, but we are working on dynamically scaling the number of workers based on the load of the system.
 
