@@ -73,7 +73,7 @@ While you could run each workers one by one manually, the `scheduler` can take c
 
 *Before running the scheduler, make sure that you are in your Python virtual environment. This is required for the ML worker, that will run Python-based ML models. If you created it with `uv` as instructed earlier, you can enter the virtual environment with `source .venv/bin/activate`.*
 
-The scheduler should print a number of things to your terminal, here is a non exhaustive list of what you should see:
+The scheduler prints a variety of messages to your terminal, e.g.:
 - At the start you should see a bunch of `Processed alert with candid: <alert_candid>, queueing for classification` messages, which means that the fake alert worker is picking up on the alerts, processed them, and is queueing them for classification.
 - You should then see some `ML WORKER <worker_id>: received alerts len: <nb_alerts>` messages, which means that the ML worker is processing the alerts successfully.
 - You should not see anything related to the filter worker. **This is normal, as we did not define any filters yet!** The next version of the README will include instructions on how to upload a dummy filter to the system for testing purposes.
