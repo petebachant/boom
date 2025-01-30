@@ -65,7 +65,7 @@ BOOM is meant to be run in production, reading from a real-time stream of astron
     ```
 Where `<date_in_YYYMMDD_format>` is the date of the alerts you want to read. We suggest using a night with a very small number of alerts to just get the code running, like `20240617` for example. The script will take care of downloading the alerts from the ZTF IPAC server, writing them to `data/alerts/ztf/YYYYMMDD/*.avro`, and then will start pushing them to a `Redis`/`Valkey` queue. You can leave that running in the background, and start the rest of the pipeline in another terminal.
 
-While you could run each workers one by one manually, the `scheduler` can take care of that for you. When using the scheduler, the number of workers for each type is read from `config.yaml`. You can run the scheduler with:
+Instead of starting each worker manually, we provide the `scheduler`. It reads the number of workers for each type from `config.yaml`. Run the scheduler with:
     ```bash
     cargo run --release --bin scheduler <stream_name> <config_path>
     ```
