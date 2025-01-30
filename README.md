@@ -14,7 +14,7 @@ BOOM also comes with an API, with is currently being developed in its own GitHub
 
 ## System Requirements
 
-We support running boom on UNIX systems: MacOS and any Linux distro. You'll need:
+BOOM runs on macOS and Linux. You'll need:
 
 - `Docker` and `docker-compose`: used to run the database, cache/task queue, and Kafka;
 - `Rust` (a systems programming language) `>= 1.55.0`;
