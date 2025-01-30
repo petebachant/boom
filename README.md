@@ -2,68 +2,68 @@
 
 ## Description
 
-BOOM is an alert broker. What sets it appart from other alert brokers is that it is written to be modular, scalable, and performant. Essentially, the pipeline is composed of multiple workers, each with a specific task:
-- A fake kafka consumer, reading alerts from astronomical survey(s) kafka topics, and writing them to a `Redis`/`Valkey` in-memory queue.
-- Followed by Alert Ingestion workers, reading alerts from the `Redis`/`Valkey` queue, formating them, enriching them with crossmatches with archival astronomical catalogs and other surveys, and writing them to a `MongoDB` database.
-- Followed by ML workers, running alerts through a series of ML classifiers, and writing the results back to the database.
-4. Filter workers, running user-defined filters on the alerts, and sending the results to Kafka topics for other services to consume.
+BOOM is an alert broker. What sets it appart from other alert brokers is that it is written to be modular, scalable, and performant. Essentially, the pipeline is composed of multiple types of workers, each with a specific task:
+1. The `Kafka` consumer(s), reading alerts from astronomical surveys' `Kafka` topics to transfer them to `Redis`/`Valkey` in-memory queues.
+2. The Alert Ingestion workers, reading alerts from the `Redis`/`Valkey` queues, responsible of formatting them to BSON documents, and enriching them with crossmatches from archival astronomical catalogs and other surveys before writting the formatted alert packets to a `MongoDB` database.
+3. The ML workers, running alerts through a series of ML classifiers, and writing the results back to the `MongoDB` database.
+4. The Filter workers, running user-defined filters on the alerts, and sending the results to Kafka topics for other services to consume.
 
 Workers are managed by a Scheduler that can spawn or kill workers of each type. Currently, the number of workers is static, but we are working on dynamically scaling the number of workers based on the load of the system.
 
-BOOM also comes with an API, under development, which will allow users to query the database, to define their own filters, and to have those filters run on alerts in real-time.
+BOOM also comes with an HTTP API, under development, which will allow users to query the `MongoDB` database, to define their own filters, and to have those filters run on alerts in real-time.
 
 ## System Requirements
 
 BOOM runs on macOS and Linux. You'll need:
 
-- `Docker` and `docker-compose`: used to run the database, cache/task queue, and Kafka;
+- `Docker` and `docker-compose`: used to run the database, cache/task queue, and `Kafka`;
 - `Rust` (a systems programming language) `>= 1.55.0`;
 - `Python` (a high-level programming language) `>= 3.10`: we recommend using `uv` to create a virtual environment with the required Python dependencies.
 
-Let's go through some of the installation steps, per system:
+### Installation steps:
 
-### MacOS
+#### macOS
 
-- Docker: On MacOS we recommend using [Docker Desktop](https://www.docker.com/products/docker-desktop) to install docker. You can download it from the website, and follow the installation instructions. The website will ask you to "choose a plan", but really you just need to create an account and stick with the free tier that offers all of the features you will ever need. Once installed, you can verify the installation by running `docker --version` in your terminal, and `docker compose --version` to check that docker compose is installed as well.
+- Docker: On macOS we recommend using [Docker Desktop](https://www.docker.com/products/docker-desktop) to install docker. You can download it from the website, and follow the installation instructions. The website will ask you to "choose a plan", but really you just need to create an account and stick with the free tier that offers all of the features you will ever need. Once installed, you can verify the installation by running `docker --version` in your terminal, and `docker compose --version` to check that docker compose is installed as well.
 - Rust: You can either use [rustup](https://www.rust-lang.org/tools/install) to install Rust, or you can use [Homebrew](https://brew.sh/) to install it. If you choose the latter, you can run `brew install rust` in your terminal. We recommend using rustup, as it allows you to easily switch between different versions of Rust, and to keep your Rust installation up to date. Once installed, you can verify the installation by running `rustc --version` in your terminal. You also want to make sure that cargo is installed, which is the Rust package manager. You can verify this by running `cargo --version` in your terminal.
 - Python: We strongly recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage your python installation and virtual environments. You can install it with `brew`, `pip`, or using the [install script](https://docs.astral.sh/uv/getting-started/installation/#install-script). We recommend the later. Once installed, you can verify the installation by running `uv --version` in your terminal.
 
-### Linux
+#### Linux
 
-- Docker: You can either install Docker Desktop (same instructions as for MacOS), or you can just install Docker Engine. The latter is more lightweight. You can follow the [official installation instructions](https://docs.docker.com/engine/install/) for your specific Linux distribution. If you only installed Docker Engine, you'll want to also install [docker compose](https://docs.docker.com/compose/install/). Once installed, you can verify the installation by running `docker --version` in your terminal, and `docker compose --version` to check that docker compose is installed as well.
+- Docker: You can either install Docker Desktop (same instructions as for macOS), or you can just install Docker Engine. The latter is more lightweight. You can follow the [official installation instructions](https://docs.docker.com/engine/install/) for your specific Linux distribution. If you only installed Docker Engine, you'll want to also install [docker compose](https://docs.docker.com/compose/install/). Once installed, you can verify the installation by running `docker --version` in your terminal, and `docker compose --version` to check that docker compose is installed as well.
 - Rust: You can use [rustup](https://www.rust-lang.org/tools/install) to install Rust. Once installed, you can verify the installation by running `rustc --version` in your terminal. You also want to make sure that cargo is installed, which is the Rust package manager. You can verify this by running `cargo --version` in your terminal.
 - Python: We strongly recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage your python installation and virtual environments. You can install it with `pip`, or using the [install script](https://docs.astral.sh/uv/getting-started/installation/#install-script). We recommend the later. Once installed, you can verify the installation by running `uv --version` in your terminal.
 
 ## Setup
 
-- We'll start by creating a python virtual environment to manage our python install and dependencies. Here's how you can do that with `uv`:
+1. We'll start by creating a python virtual environment to manage our python install and dependencies. Here's how you can do that with `uv`:
     ```bash
     uv venv --python 3.10
     source .venv/bin/activate
     uv pip install -r requirements.txt
     ```
-- Next, copy the default config file, `config.default.yaml`, to `config.yaml`:
+2. Next, copy the default config file, `config.default.yaml`, to `config.yaml`:
     ```bash
     cp config.default.yaml config.yaml
     ```
-- Launch `Valkey`, `MongoDB`, and `Kafka` using docker, using the provided `docker-compose.yaml` file:
+3. Launch `Valkey`, `MongoDB`, and `Kafka` using docker, using the provided `docker-compose.yaml` file:
     ```bash
     docker-compose up -d
     ```
     This may take a couple of minutes the first time you run it, as it needs to download the docker image for each service.
     *To check if the containers are running and healthy, run `docker ps`.*
-- Last but not least, build the Rust binaries. You can do this with or without the `--release` flag, but we recommend using it for better performance:
+4. Last but not least, build the Rust binaries. You can do this with or without the `--release` flag, but we recommend using it for better performance:
     ```bash
     cargo build --release
     ```
 
 ## Running BOOM:
 
-BOOM is meant to be run in production, reading from a real-time stream of astronomical alerts. **That said, we can use ZTF archival alerts to test the pipeline.** To do so, you can start the **fake** kafka consumer (that reads alerts from a file instead of a kafka topic) with:
+BOOM is meant to be run in production, reading from a real-time stream of astronomical alerts. **That said, we can use ZTF archival alerts to test the pipeline.** To do so, you can start the **fake** `Kafka` consumer (that reads alerts from a file instead of `Kafka` topics) with:
     ```bash
     cargo run --release --bin fake_kafka_consumer <date_in_YYYMMDD_format>
     ```
-Where `<date_in_YYYMMDD_format>` is the date of the alerts you want to read. We suggest using a night with a very small number of alerts to just get the code running, like `20240617` for example. The script will take care of downloading the alerts from the ZTF IPAC server, writing them to `data/alerts/ztf/YYYYMMDD/*.avro`, and then will start pushing them to a `Redis`/`Valkey` queue. You can leave that running in the background, and start the rest of the pipeline in another terminal.
+Where `<date_in_YYYMMDD_format>` is the date of the alerts you want to read. We suggest using a night with a very small number of alerts to just get the code running, like `20240617` for example. The script will take care of downloading the alerts from the ZTF IPAC server, writing them to `data/alerts/ztf/YYYYMMDD/*.avro`, and then will start pushing them to the associated `Redis`/`Valkey` queue. You can leave that running in the background, and start the rest of the pipeline in another terminal.
 
 Instead of starting each worker manually, we provide the `scheduler`. It reads the number of workers for each type from `config.yaml`. Run the scheduler with:
     ```bash
@@ -81,14 +81,14 @@ The scheduler prints a variety of messages to your terminal, e.g.:
 
 ## Stopping BOOM:
 
-To stop BOOM, you can simply stop the fake kafka consumer with `CTRL+C`, and then stop the scheduler with `CTRL+C` as well. You can also stop the docker containers with:
+To stop BOOM, you can simply stop the `Kafka` consumer with `CTRL+C`, and then stop the scheduler with `CTRL+C` as well. You can also stop the docker containers with:
 ```bash
 docker-compose down
 ```
 
 When you stop the scheduler, it will attempt to gracefully stop all the workers by sending them interrupt signals. This is still a work in progress, so you might see some error handling taking place in the logs.
 
-**In the next version of the README, we'll provide the user with example scripts to read the output of BOOM (i.e. the alerts that passed the filters) from Kafka topics. For now, alerts are send back to `Redis`/`valkey` if they pass any filters.**
+**In the next version of the README, we'll provide the user with example scripts to read the output of BOOM (i.e. the alerts that passed the filters) from `Kafka` topics. For now, alerts are send back to `Redis`/`valkey` if they pass any filters.**
 
 ## Tests
 
@@ -122,7 +122,7 @@ We already ran it for the ZTF Avro schema (so no need to do it again), and the c
 
 ### Dealing with Rust structs and MongoDB BSON documents:
 
-We could in theory just query MongoDB in a way that allows us to get Rust structs out of it, and also do the same when writing to the database. However under the hood the `mongodb` crate just serializes back and forth, and since Rust structs can't just "remove" their fields that are null (in a way, they need to enforce a schema), we would end up with a lot of null fields in the database. To avoid this, we use the `bson` crate to serialize the Rust structs to BSON documents, sanitize them (remove the null fields and such), and then write them to the database. When querying the DB, both bson documents or Rust structs can be returned, it depends on the use case.
+We could in theory just query` MongoDB` in a way that allows us to get Rust structs out of it, and also do the same when writing to the database. However under the hood the `mongodb` crate just serializes back and forth, and since Rust structs can't just "remove" their fields that are null (in a way, they need to enforce a schema), we would end up with a lot of null fields in the database. To avoid this, we use the `bson` crate to serialize the Rust structs to BSON documents, sanitize them (remove the null fields and such), and then write them to the database. When querying the DB, both bson documents or Rust structs can be returned, it depends on the use case.
 
 ### Why still using Python for some parts of the pipeline?
 
@@ -138,8 +138,8 @@ There are multiple answers to this:
 
 ### Why `MongoDB` as a database?
 
-MongoDB proved to be a great choice for another broker that `BOOM` is heavily inspired from: `Kowalski`. Mongo has great support across multiple programming languages, is highly flexible, has a rich query language that we can build complex pipelines with (perfect for filtering alerts), and is easy to maintain. It is also fast, and can handle a lot of data. We could have gone with `PostgreSQL`, but we would have lost some flexibility, and we would have had to enforce a schema on the data, which is not ideal for an alert stream that can have a lot of different fields. With MongoDB, we do not have to enforce a schema or run database migrations whenever we want to add another astronomical catalog to crossmatch with the alerts.
+`MongoDB` proved to be a great choice for another broker that `BOOM` is heavily inspired from: `Kowalski`. Mongo has great support across multiple programming languages, is highly flexible, has a rich query language that we can build complex pipelines with (perfect for filtering alerts), and is easy to maintain. It is also fast, and can handle a lot of data. We could have gone with `PostgreSQL`, but we would have lost some flexibility, and we would have had to enforce a schema on the data, which is not ideal for an alert stream that can have a lot of different fields. With `MongoDB`, we do not have to enforce a schema or run database migrations whenever we want to add another astronomical catalog to crossmatch with the alerts.
 
 ### Why `Kafka` as a message broker?
 
-Kafka has been the standard for astronomical alert brokering for a while now, and offers a lot of features that are useful for our use case. It is highly scalable, fault-tolerant, and can handle a lot of data. It also has a rich ecosystem of tools and libraries that we can leverage to build the rest of the system. We could have gone with `Redis`/`Valkey` as a message broker, but reading from Kafka topics is what other downstream services expect, and it would have been a pain to have to maintain a custom solution for that. This way, we can keep the internal cache/task queue and the public facing message broker separate.
+`Kafka` has been the standard for astronomical alert brokering for a while now, and offers a lot of features that are useful for our use case. It is highly scalable, fault-tolerant, and can handle a lot of data. It also has a rich ecosystem of tools and libraries that we can leverage to build the rest of the system. We could have gone with `Redis`/`Valkey` as a message broker, but reading from `Kafka` topics is what other downstream services expect, and it would have been a pain to have to maintain a custom solution for that. This way, we can keep the internal cache/task queue and the public facing message broker separate.
