@@ -51,7 +51,7 @@ Let's go through some of the installation steps, per system:
     docker-compose up -d
     ```
     This may take a couple of minutes the first time you run it, as it will download the docker images for each service.
-    *To check if the containers are running and healthy, you can run `docker ps` in your terminal.*
+    *To check if the containers are running and healthy, run `docker ps`.*
 - Last but not least, build the Rust binaries. You can do this with or without the `--release` flag, but we recommend using it for better performance:
     ```bash
     cargo build --release
