@@ -46,7 +46,7 @@ Let's go through some of the installation steps, per system:
     ```bash
     cp config.default.yaml config.yaml
     ```
-- To run `Valkey`, `MongoDB`, and `Kafka` in docker, we provide a `docker-compose.yaml` file in the repository. You can start these services with:
+- Launch `Valkey`, `MongoDB`, and `Kafka` using docker, using the provided `docker-compose.yaml` file:
     ```bash
     docker-compose up -d
     ```
