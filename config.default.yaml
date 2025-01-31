@@ -11,11 +11,11 @@ workers:
   ZTF:
     command_interval: 500
     alert:
-      n_workers: 3
+      n_workers: 1
     ml:
-      n_workers: 3
+      n_workers: 1
     filter:
-      n_workers: 3
+      n_workers: 1
 crossmatch:
   ZTF:
     - catalog: PS1_DR1
