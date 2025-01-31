@@ -6,9 +6,7 @@ use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = redis::Client::open(
-        "redis://localhost:6379".to_string()
-    )?;
+    let client = redis::Client::open("redis://localhost:6379".to_string())?;
     let mut con = client.get_multiplexed_async_connection().await.unwrap();
 
     // empty the queue
@@ -36,7 +34,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match message {
             Some(Ok(msg)) => {
                 let payload = msg.payload().unwrap();
-                con.rpush::<&str, Vec<u8>, usize>("alertpacketqueue", payload.to_vec()).await.unwrap();
+                con.rpush::<&str, Vec<u8>, usize>("alertpacketqueue", payload.to_vec())
+                    .await
+                    .unwrap();
                 total += 1;
                 if total % 1000 == 0 {
                     println!("Pushed {} items since {:?}", total, start.elapsed());

@@ -26,7 +26,10 @@ fn download_alerts_from_archive(date: &str) -> Result<i64, Box<dyn std::error::E
 
     println!("Downloading alerts for date {}", date);
     // download the alerts to data folder
-    let url = format!("https://ztf.uw.edu/alerts/public/ztf_public_{}.tar.gz", date);
+    let url = format!(
+        "https://ztf.uw.edu/alerts/public/ztf_public_{}.tar.gz",
+        date
+    );
     let output = std::process::Command::new("wget")
         .arg(&url)
         .arg("-P")
@@ -70,13 +73,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let date = &args[1];
     let total_nb_alerts = download_alerts_from_archive(date)?;
 
-    let client = redis::Client::open(
-        "redis://localhost:6379".to_string()
-    )?;
+    let client = redis::Client::open("redis://localhost:6379".to_string())?;
     let mut con = client.get_multiplexed_async_connection().await.unwrap();
 
     // empty the queue
-    con.del::<&str, usize>("ZTF_alerts_packet_queue").await.unwrap();
+    con.del::<&str, usize>("ZTF_alerts_packet_queue")
+        .await
+        .unwrap();
 
     let mut total = 0;
 
@@ -89,7 +92,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = entry.path();
         let payload = std::fs::read(path)?;
 
-        con.rpush::<&str, Vec<u8>, usize>("ZTF_alerts_packet_queue", payload.to_vec()).await.unwrap();
+        con.rpush::<&str, Vec<u8>, usize>("ZTF_alerts_packet_queue", payload.to_vec())
+            .await
+            .unwrap();
         total += 1;
         if total % 1000 == 0 {
             println!("Pushed {} items since {:?}", total, start.elapsed());

@@ -1,9 +1,9 @@
-use redis::{AsyncCommands, streams::StreamReadOptions};
+use redis::{streams::StreamReadOptions, AsyncCommands};
 use std::{
-    env, 
+    collections::HashMap,
+    env,
     error::Error,
     sync::{Arc, Mutex},
-    collections::HashMap,
 };
 
 use boom::{conf, filter, worker_util};
@@ -18,10 +18,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for i in 1..args.len() {
         let filter_id = args[i].parse::<i32>().unwrap();
         if !filter_ids.contains(&filter_id) {
-            filter_ids.push(filter_id);   
+            filter_ids.push(filter_id);
         }
     }
-    println!("Starting filter worker for {} with filters {:?}", catalog, filter_ids);
+    println!(
+        "Starting filter worker for {} with filters {:?}",
+        catalog, filter_ids
+    );
 
     // setup signal handler thread
     let interrupt = Arc::new(Mutex::new(false));
@@ -30,11 +33,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // connect to mongo and redis
     let config_file = conf::load_config("config.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
-    let client_redis = redis::Client::open(
-        "redis://localhost:6379".to_string()).unwrap();
+    let client_redis = redis::Client::open("redis://localhost:6379".to_string()).unwrap();
     let mut con = client_redis
-        .get_multiplexed_async_connection().await.unwrap();
-    
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
+
     // build filters and organize by permission level
     let mut filter_table: HashMap<i64, Vec<filter::Filter>> = HashMap::new();
     for id in filter_ids.clone() {
@@ -45,8 +49,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 if !filter_table.contains_key(perms) {
                     filter_table.insert(perms.clone(), Vec::new());
                 }
-                filter_table.entry(perms.clone()).and_modify(|filters| filters.push(filter));
-            },
+                filter_table
+                    .entry(perms.clone())
+                    .and_modify(|filters| filters.push(filter));
+            }
             Err(e) => {
                 println!("got error when trying to build filter {}: {}", id, e);
                 return Err(e);
@@ -59,8 +65,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for filter_vec in filter_table.values() {
         for filter in filter_vec {
             let perms = filter.permissions.iter().max().unwrap();
-            let stream = format!("{stream}_programid_{programid}_filter_stream",
-                stream = filter.catalog, programid = perms);
+            let stream = format!(
+                "{stream}_programid_{programid}_filter_stream",
+                stream = filter.catalog,
+                programid = perms
+            );
             if !redis_streams.contains_key(perms) {
                 redis_streams.insert(perms.clone(), stream);
             }
@@ -78,15 +87,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for filter_vec in filter_table.values() {
         for filter in filter_vec {
             let consumer_group = format!("filter_{filter_id}_group", filter_id = filter.id);
-            let consumer_group_res: Result<(), redis::RedisError> = con.xgroup_create(
-                &redis_streams[filter.permissions.iter().max().unwrap()], 
-                &consumer_group, "0").await;
+            let consumer_group_res: Result<(), redis::RedisError> = con
+                .xgroup_create(
+                    &redis_streams[filter.permissions.iter().max().unwrap()],
+                    &consumer_group,
+                    "0",
+                )
+                .await;
             match consumer_group_res {
                 Ok(()) => {
                     println!("Created consumer group for filter {}", filter.id);
-                },
+                }
                 Err(e) => {
-                    println!("Consumer group already exists for filter {}: {:?}", filter.id, e);
+                    println!(
+                        "Consumer group already exists for filter {}: {:?}",
+                        filter.id, e
+                    );
                 }
             }
             let opts = StreamReadOptions::default()
@@ -94,8 +110,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .count(100);
             read_options.insert(filter.id, opts);
             filter_results_queues.insert(
-                filter.id, 
-                format!("filter_{filter_id}_results", filter_id = filter.id));
+                filter.id,
+                format!("filter_{filter_id}_results", filter_id = filter.id),
+            );
         }
     }
 
@@ -111,15 +128,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let candids = worker_util::get_candids_from_stream(
                     &mut con,
                     &redis_streams[&perm],
-                    &read_options[&filter.id]).await;
+                    &read_options[&filter.id],
+                )
+                .await;
                 if candids.len() == 0 {
                     empty_stream_counter += 1;
                     continue;
                 }
                 let in_count = candids.len();
 
-                println!("got {} candids from redis stream for filter {}", in_count, redis_streams[&perm]);
-                println!("running filter with id {} on {} alerts", filter.id, in_count);
+                println!(
+                    "got {} candids from redis stream for filter {}",
+                    in_count, redis_streams[&perm]
+                );
+                println!(
+                    "running filter with id {} on {} alerts",
+                    filter.id, in_count
+                );
 
                 let start = std::time::Instant::now();
 
@@ -129,17 +154,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 // convert the documents to a format that any other worker (even in python) can read
                 // for that we can deserialize the Document to json
-                let out_documents: Vec<String> = out_documents.iter().map(|doc| {
-                    let json = serde_json::to_string(doc).unwrap();
-                    json
-                }).collect();
+                let out_documents: Vec<String> = out_documents
+                    .iter()
+                    .map(|doc| {
+                        let json = serde_json::to_string(doc).unwrap();
+                        json
+                    })
+                    .collect();
                 con.lpush::<&str, &Vec<String>, isize>(
                     &filter_results_queues[&filter.id],
-                    &out_documents).await.unwrap();
+                    &out_documents,
+                )
+                .await
+                .unwrap();
 
                 println!(
-                    "{}/{} alerts passed filter {} in {}s", 
-                    out_documents.len(), in_count, filter.id, start.elapsed().as_secs_f64());
+                    "{}/{} alerts passed filter {} in {}s",
+                    out_documents.len(),
+                    in_count,
+                    filter.id,
+                    start.elapsed().as_secs_f64()
+                );
             }
         }
         if empty_stream_counter == filter_ids.len() {
