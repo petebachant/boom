@@ -5,6 +5,7 @@ use crate::{
 };
 use redis::AsyncCommands;
 use std::sync::{mpsc, Arc, Mutex};
+use tracing::{error, info, warn};
 
 // alert worker as a standalone function which is run by the scheduler
 #[tokio::main]
@@ -22,7 +23,7 @@ pub async fn alert_worker(
     // DATABASE
     let db: mongodb::Database = conf::build_db(&config_file).await;
     if let Err(e) = db.list_collection_names().await {
-        println!("Error connecting to the database: {}", e);
+        error!("Error connecting to the database: {}", e);
         return;
     }
 
@@ -41,7 +42,7 @@ pub async fn alert_worker(
         .build();
     match alert_collection.create_index(alert_candid_index).await {
         Err(e) => {
-            println!(
+            error!(
                 "Error when creating index for candidate.candid in collection {}: {}",
                 format!("{}_alerts", stream_name),
                 e
@@ -73,7 +74,7 @@ pub async fn alert_worker(
             if let Ok(command) = receiver.lock().unwrap().try_recv() {
                 match command {
                     WorkerCmd::TERM => {
-                        println!("alert worker {} received termination command", id);
+                        warn!("alert worker {} received termination command", id);
                         return;
                     }
                 }
@@ -96,7 +97,7 @@ pub async fn alert_worker(
                 alert_counter += 1;
                 match candid {
                     Ok(Some(candid)) => {
-                        println!(
+                        info!(
                             "Processed alert with candid: {}, queueing for classification",
                             candid
                         );
@@ -109,14 +110,14 @@ pub async fn alert_worker(
                             .unwrap();
                     }
                     Ok(None) => {
-                        println!("Alert already exists");
+                        info!("Alert already exists");
                         // remove the alert from the queue
                         con.lrem::<&str, Vec<u8>, isize>(&queue_temp_name, 1, value[0].clone())
                             .await
                             .unwrap();
                     }
                     Err(e) => {
-                        println!("Error processing alert: {}, requeueing", e);
+                        error!("Error processing alert: {}, requeueing", e);
                         // put it back in the alertpacketqueue, to the left (pop from the right, push to the left)
                         con.lrem::<&str, Vec<u8>, isize>(&queue_temp_name, 1, value[0].clone())
                             .await
@@ -128,7 +129,7 @@ pub async fn alert_worker(
                 }
                 if count > 1 && count % 100 == 0 {
                     let elapsed = start.elapsed().as_secs();
-                    println!(
+                    info!(
                         "\nProcessed {} {} alerts in {} seconds, avg: {:.4} alerts/s\n",
                         count,
                         stream_name,
@@ -139,14 +140,14 @@ pub async fn alert_worker(
                 count += 1;
             }
             None => {
-                println!("ALERT WORKER {}: Queue is empty", id);
+                info!("ALERT WORKER {}: Queue is empty", id);
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 alert_counter = 0;
                 // check for command from threadpool
                 if let Ok(command) = receiver.lock().unwrap().try_recv() {
                     match command {
                         WorkerCmd::TERM => {
-                            println!("alert worker {} received termination command", id);
+                            warn!("alert worker {} received termination command", id);
                             return;
                         }
                     }

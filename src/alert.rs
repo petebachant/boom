@@ -1,8 +1,8 @@
-use flare::time::Time;
-use mongodb::bson::doc;
-
 use crate::spatial;
 use crate::types;
+use flare::time::Time;
+use mongodb::bson::doc;
+use tracing::{error, info};
 
 pub async fn process_alert(
     avro_bytes: Vec<u8>,
@@ -16,7 +16,7 @@ pub async fn process_alert(
     let alert = match types::Alert::from_avro_bytes_unsafe(avro_bytes, schema) {
         Ok(alert) => alert,
         Err(e) => {
-            println!("Error reading alert packet: {}", e);
+            error!("Error reading alert packet: {}", e);
             return Ok(None);
         }
     };
@@ -29,7 +29,7 @@ pub async fn process_alert(
         .is_none()
     {
         // we return early if there is already an alert with the same candid
-        println!("alert with candid {} already exists", &alert.candid);
+        info!("alert with candid {} already exists", &alert.candid);
         return Ok(None);
     }
 

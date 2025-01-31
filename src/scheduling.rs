@@ -7,6 +7,7 @@ use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
 };
+use tracing::{info, warn};
 
 // Thread pool
 // allows spawning, killing, and managing of various worker threads through
@@ -95,14 +96,14 @@ impl ThreadPool {
             ),
         );
         self.senders.insert(id.clone(), Some(sender));
-        println!("Added worker with id: {}", &id);
+        info!("Added worker with id: {}", &id);
     }
 }
 
 // shut down all workers from the thread pool and drop the threadpool
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        println!("Sending terminate message to all workers.");
+        warn!("Sending terminate message to all workers.");
 
         // get the ids of all workers
         let ids: Vec<String> = self.senders.keys().cloned().collect();
@@ -111,10 +112,10 @@ impl Drop for ThreadPool {
             self.remove_worker(id);
         }
 
-        println!("Shutting down all workers.");
+        warn!("Shutting down all workers.");
 
         for (id, worker) in &mut self.workers {
-            println!("Shutting down worker {}", &id);
+            warn!("Shutting down worker {}", &id);
 
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap();

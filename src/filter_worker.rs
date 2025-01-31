@@ -6,6 +6,7 @@ use std::{
     error::Error,
     sync::{mpsc, Arc, Mutex},
 };
+use tracing::{error, info, warn};
 
 // filter worker as a standalone function run by the scheduler
 #[tokio::main]
@@ -16,7 +17,7 @@ pub async fn filter_worker(
     config_path: String,
 ) -> Result<(), Box<dyn Error>> {
     let catalog = stream_name.clone();
-    let filters = vec![3];
+    let filters = vec![1];
     let mut filter_ids: Vec<i32> = Vec::new();
 
     for i in 0..filters.len() {
@@ -24,7 +25,7 @@ pub async fn filter_worker(
             filter_ids.push(filters[i]);
         }
     }
-    println!(
+    info!(
         "Starting filter worker for {} with filters {:?}",
         catalog, filter_ids
     );
@@ -56,7 +57,7 @@ pub async fn filter_worker(
                     .and_modify(|filters| filters.push(filter));
             }
             Err(e) => {
-                println!("got error when trying to build filter {}: {}", id, e);
+                error!("got error when trying to build filter {}: {}", id, e);
                 return Err(e);
             }
         }
@@ -93,10 +94,10 @@ pub async fn filter_worker(
                 .await;
             match consumer_group_res {
                 Ok(()) => {
-                    println!("Created consumer group for filter {}", filter.id);
+                    info!("Created consumer group for filter {}", filter.id);
                 }
                 Err(e) => {
-                    println!(
+                    info!(
                         "Consumer group already exists for filter {}: {:?}",
                         filter.id, e
                     );
@@ -123,7 +124,7 @@ pub async fn filter_worker(
             if let Ok(command) = receiver.lock().unwrap().try_recv() {
                 match command {
                     WorkerCmd::TERM => {
-                        println!("alert worker {} received termination command", id);
+                        warn!("alert worker {} received termination command", id);
                         return Ok(());
                     }
                 }
@@ -145,11 +146,7 @@ pub async fn filter_worker(
                 let in_count = candids.len();
                 alert_counter += in_count as i64;
 
-                println!(
-                    "got {} candids from redis stream for filter {}",
-                    in_count, redis_streams[&perm]
-                );
-                println!(
+                info!(
                     "running filter with id {} on {} alerts",
                     filter.id, in_count
                 );
@@ -176,7 +173,7 @@ pub async fn filter_worker(
                 .await
                 .unwrap();
 
-                println!(
+                info!(
                     "{}/{} alerts passed filter {} in {}s",
                     out_documents.len(),
                     in_count,
@@ -186,13 +183,13 @@ pub async fn filter_worker(
             }
         }
         if empty_stream_counter == filter_ids.len() {
-            println!("FILTER WORKER {}: All streams empty", id);
+            info!("FILTER WORKER {}: All streams empty", id);
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
             alert_counter = 0;
             if let Ok(command) = receiver.lock().unwrap().try_recv() {
                 match command {
                     WorkerCmd::TERM => {
-                        println!("alert worker {} received termination command", id);
+                        warn!("alert worker {} received termination command", id);
                         return Ok(());
                     }
                 }

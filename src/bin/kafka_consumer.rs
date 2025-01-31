@@ -2,10 +2,18 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::message::Message;
 use redis::AsyncCommands;
+use tracing::{error, info, Level};
+use tracing_subscriber::FmtSubscriber;
 use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::TRACE)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
     let client = redis::Client::open("redis://localhost:6379".to_string())?;
     let mut con = client.get_multiplexed_async_connection().await.unwrap();
 
@@ -25,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     consumer.subscribe(&["ztf_20240519_programid1"]).unwrap();
 
-    println!("Reading from kafka topic and pushing to the queue");
+    info!("Reading from kafka topic and pushing to the queue");
     // start timer
     let start = std::time::Instant::now();
     // poll one message at a time
@@ -39,14 +47,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .unwrap();
                 total += 1;
                 if total % 1000 == 0 {
-                    println!("Pushed {} items since {:?}", total, start.elapsed());
+                    info!("Pushed {} items since {:?}", total, start.elapsed());
                 }
             }
             Some(Err(err)) => {
-                println!("Error: {:?}", err);
+                error!("Error: {:?}", err);
             }
             None => {
-                println!("No message");
+                info!("No message");
             }
         }
     }

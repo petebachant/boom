@@ -12,6 +12,7 @@ use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
 };
+use tracing::{info, warn};
 
 // fake ml worker which, like the ML worker, receives alerts from the alert worker and sends them
 //      to streams
@@ -44,7 +45,7 @@ pub async fn fake_ml_worker(
             if let Ok(command) = receiver.lock().unwrap().try_recv() {
                 match command {
                     WorkerCmd::TERM => {
-                        println!("alert worker {} received termination command", id);
+                        warn!("alert worker {} received termination command", id);
                         return;
                     }
                 }
@@ -75,20 +76,20 @@ pub async fn fake_ml_worker(
         }
 
         if alerts.len() == 0 {
-            println!("ML WORKER {}: queue empty", id);
+            info!("ML WORKER {}: queue empty", id);
             thread::sleep(time::Duration::from_secs(5));
             alert_counter = 0;
             if let Ok(command) = receiver.lock().unwrap().try_recv() {
                 match command {
                     WorkerCmd::TERM => {
-                        println!("alert worker {} received termination command", id);
+                        warn!("alert worker {} received termination command", id);
                         return;
                     }
                 }
             }
             continue;
         } else {
-            println!("ML WORKER {}: received alerts len: {}", id, alerts.len());
+            info!("ML WORKER {}: received alerts len: {}", id, alerts.len());
             alert_counter += alerts.len() as i64;
         }
 

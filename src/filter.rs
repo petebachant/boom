@@ -1,6 +1,7 @@
 use futures::stream::StreamExt;
 use mongodb::bson::{doc, Document};
 use std::{error::Error, fmt};
+use tracing::error;
 
 const ALLOWED_CATALOGS: [&str; 1] = ["ZTF_alerts"];
 
@@ -72,7 +73,7 @@ impl Filter {
             .await;
 
         if let Err(e) = filter_obj {
-            println!("Got ERROR when retrieving filter from database: {}", e);
+            error!("Got ERROR when retrieving filter from database: {}", e);
             return Result::Err(Box::new(e));
         }
 
@@ -95,7 +96,6 @@ impl Filter {
         }
 
         // get permissions
-        println!("permissions: {:?}", filter_obj.get("permissions").unwrap());
         let permissions = filter_obj
             .get("permissions")
             .unwrap()
