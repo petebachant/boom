@@ -3,7 +3,7 @@ use crate::{
     worker_util::{WorkerCmd, WorkerType},
 };
 use std::{sync::mpsc, thread};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 // Thread pool
 // allows spawning, killing, and managing of various worker threads through
@@ -48,7 +48,7 @@ impl ThreadPool {
         for worker in &self.workers {
             info!("sending termination signal to worker {}", &worker.id);
             if let Err(error) = worker.terminate() {
-                error!(
+                warn!(
                     error = %error,
                     "failed to send termination signal to worker {}",
                     &worker.id

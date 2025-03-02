@@ -1232,7 +1232,8 @@ impl Alert {
     pub fn from_avro_bytes_unsafe(
         avro_bytes: &[u8],
         schema: &apache_avro::Schema,
-    ) -> Result<Alert, Box<dyn std::error::Error>> { // TODO: need a concrete error type here
+    ) -> Result<Alert, Box<dyn std::error::Error>> {
+        // TODO: need a concrete error type here
         let mut cursor = std::io::Cursor::new(avro_bytes);
 
         let mut buf = [0; 4];

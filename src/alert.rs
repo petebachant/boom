@@ -32,7 +32,7 @@ pub async fn process_alert(
     let alert = types::Alert::from_avro_bytes_unsafe(avro_bytes, schema)?;
 
     // check if the alert already exists in the alerts collection
-    if let None = alert_collection
+    if let Some(_) = alert_collection
         .find_one(doc! { "candid": &alert.candid })
         .await
         .map_err(AlertError::FindCandIdError)?
