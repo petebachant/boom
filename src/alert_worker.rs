@@ -59,7 +59,6 @@ pub async fn alert_worker(
         )
         .build();
 
-    // TODO: Is it OK to proceed if this fails?
     if let Err(error) = alert_collection.create_index(alert_candid_index).await {
         warn!(
             error = %error,
@@ -104,11 +103,6 @@ pub async fn alert_worker(
         }
         // retrieve candids from redis
         let Some(mut value): Option<Vec<Vec<u8>>> = con
-            // TODO: If the intention is to have a reliable queue, then there
-            // needs to be a separate thread that continuously monitors the temp
-            // queue and adds any items it finds back to the main queue.
-            // However, we're already pushing the value back onto the when we
-            // handle a processing error, so do we need the temp queue?
             .rpoplpush(&queue_name, &queue_temp_name)
             .await
             .map_err(AlertWorkerError::PopAlertError)?
@@ -118,9 +112,6 @@ pub async fn alert_worker(
             command_check_countdown = 0;
             continue;
         };
-        // TODO: Where does the nested vector structure come from, and are there
-        // any guarantees about whether the outer vector always has exactly one
-        // inner vector? There may be a way to simplify this.
         let avro_bytes = (!value.is_empty())
             .then_some(value.remove(0))
             .ok_or(AlertWorkerError::GetAvroBytesError)?;
@@ -143,14 +134,12 @@ pub async fn alert_worker(
                 con.lpush::<&str, i64, isize>(&classifer_queue_name, candid)
                     .await
                     .map_err(AlertWorkerError::PushCandidError)?;
-                // TODO: Is this correct? The value in the main queue was a nested vector.
                 con.lrem::<&str, Vec<u8>, isize>(&queue_temp_name, 1, avro_bytes)
                     .await
                     .map_err(AlertWorkerError::RemoveAlertError)?;
             }
             Ok(None) => {
                 info!("Alert already exists");
-                // TODO: Is this correct? The value in the main queue was a nested vector.
                 con.lrem::<&str, Vec<u8>, isize>(&queue_temp_name, 1, avro_bytes)
                     .await
                     .map_err(AlertWorkerError::RemoveAlertError)?;
@@ -158,11 +147,9 @@ pub async fn alert_worker(
             Err(error) => {
                 warn!(error = %error, "Error processing alert, requeueing");
                 // put it back in the ZTF_alerts_packets_queue, to the left (pop from the right, push to the left)
-                // TODO: Is this correct? The original value was a nested vector.
                 con.lpush::<&str, Vec<u8>, isize>(&queue_name, avro_bytes.clone())
                     .await
                     .map_err(AlertWorkerError::PushAlertError)?;
-                // TODO: Is this correct? The value in the main queue was a nested vector.
                 con.lrem::<&str, Vec<u8>, isize>(&queue_temp_name, 1, avro_bytes)
                     .await
                     .map_err(AlertWorkerError::RemoveAlertError)?;

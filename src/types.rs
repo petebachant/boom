@@ -8,7 +8,6 @@ use mongodb::bson::doc;
 use mongodb::bson::to_document;
 use tracing::error;
 
-// TODO: This should return a Result.
 pub fn ztf_alert_schema() -> Option<Schema> {
     // infer the schema from an avro file directly,
     // easier than merging the 5 schemas in schema/ztf
