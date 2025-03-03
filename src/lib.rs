@@ -1,6 +1,7 @@
 pub mod alert;
 mod alert_worker;
 pub mod conf;
+pub mod db;
 mod fake_ml_worker;
 pub mod filter;
 mod filter_worker;

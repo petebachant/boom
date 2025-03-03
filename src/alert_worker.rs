@@ -1,17 +1,20 @@
 pub use crate::conf;
 use crate::{
     alert,
+    db::{create_index, CreateIndexError},
     types::ztf_alert_schema,
     worker_util::{self, WorkerCmd},
 };
 use redis::AsyncCommands;
 use std::sync::mpsc::{self, TryRecvError};
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 
 #[derive(thiserror::Error, Debug)]
 pub enum AlertWorkerError {
     #[error("failed to load config")]
     LoadConfigError(#[from] conf::ConfigError),
+    #[error("failed to create index")]
+    CreateIndexError(#[from] CreateIndexError),
     #[error("failed to connect to redis")]
     ConnectRedisError(#[source] redis::RedisError),
     #[error("failed to get alert schema")]
@@ -29,6 +32,7 @@ pub enum AlertWorkerError {
 }
 
 // alert worker as a standalone function which is run by the scheduler
+#[instrument(skip(receiver), err)]
 #[tokio::main]
 pub async fn alert_worker(
     id: &str,
@@ -49,23 +53,19 @@ pub async fn alert_worker(
     let alert_collection = db.collection(&alert_collection_name);
     let alert_aux_collection = db.collection(&format!("{}_alerts_aux", stream_name));
 
-    // create index for alert collection
-    let alert_candid_index = mongodb::IndexModel::builder()
-        .keys(mongodb::bson::doc! { "candid": -1 })
-        .options(
-            mongodb::options::IndexOptions::builder()
-                .unique(true)
-                .build(),
-        )
-        .build();
+    // create indexes for the alert and alert-aux collections
+    let alert_candid_index = mongodb::bson::doc! { "candid": -1 };
+    let alert_object_id_index = mongodb::bson::doc! { "objectId": -1 };
+    let alert_radec_geojson_index = mongodb::bson::doc! { "coordinates.radec_geojson": "2dsphere" };
+    create_index(&alert_collection, alert_candid_index, true).await?;
+    create_index(&alert_collection, alert_object_id_index, false).await?;
+    create_index(&alert_collection, alert_radec_geojson_index, false).await?;
 
-    if let Err(error) = alert_collection.create_index(alert_candid_index).await {
-        warn!(
-            error = %error,
-            "Error when creating index for candidate.candid in collection {}",
-            alert_collection_name,
-        );
-    };
+    let alert_aux_id_index = mongodb::bson::doc! { "_id": -1 };
+    let alert_aux_radec_geojson_index =
+        mongodb::bson::doc! { "coordinates.radec_geojson": "2dsphere" };
+    create_index(&alert_aux_collection, alert_aux_id_index, true).await?;
+    create_index(&alert_aux_collection, alert_aux_radec_geojson_index, false).await?;
 
     // REDIS
     let client_redis = redis::Client::open("redis://localhost:6379".to_string())
