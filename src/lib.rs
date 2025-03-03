@@ -5,6 +5,7 @@ pub mod db;
 mod fake_ml_worker;
 pub mod filter;
 mod filter_worker;
+pub mod fits;
 pub mod kafka;
 pub mod scheduling;
 pub mod spatial;
