@@ -1,15 +1,7 @@
 use crate::{
-    alert::{
-        run_alert_worker,
-        ZtfAlertWorker,
-        LsstAlertWorker,
-    },
+    alert::{run_alert_worker, LsstAlertWorker, ZtfAlertWorker},
     fake_ml_worker,
-    filter::{
-        ZtfFilterWorker,
-        LsstFilterWorker,
-        run_filter_worker,
-    },
+    filter::{run_filter_worker, LsstFilterWorker, ZtfFilterWorker},
     worker_util::{WorkerCmd, WorkerType},
 };
 use std::{sync::mpsc, thread};

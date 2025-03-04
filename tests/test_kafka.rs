@@ -1,9 +1,6 @@
+use boom::kafka::{download_alerts_from_archive, produce_from_archive};
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
-use boom::kafka::{
-    download_alerts_from_archive,
-    produce_from_archive
-};
 
 #[tokio::test]
 async fn test_download_from_archive() {

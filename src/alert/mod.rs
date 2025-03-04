@@ -1,10 +1,10 @@
 mod base;
-mod ztf;
 mod lsst;
-pub use base::AlertWorker;
-pub use ztf::ZtfAlertWorker;
-pub use lsst::LsstAlertWorker;
+mod ztf;
+pub use base::run_alert_worker;
 pub use base::AlertError;
+pub use base::AlertWorker;
 pub use base::AlertWorkerError;
 pub use base::SchemaRegistryError;
-pub use base::run_alert_worker;
+pub use lsst::LsstAlertWorker;
+pub use ztf::ZtfAlertWorker;

@@ -7,7 +7,7 @@ use tracing::{error, info, trace};
 use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
 
 const LSST_SERVER_URL: &str = "usdf-alert-stream-dev.lsst.cloud:9094";
-const ZTF_SERVER_URL : &str = "localhost:9092";
+const ZTF_SERVER_URL: &str = "localhost:9092";
 
 async fn consume_partitions(
     id: &str,
@@ -22,12 +22,14 @@ async fn consume_partitions(
     password: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut config = ClientConfig::new();
-    config.set("bootstrap.servers", server)
+    config
+        .set("bootstrap.servers", server)
         .set("security.protocol", "SASL_PLAINTEXT")
         .set("group.id", group_id);
 
     if let (Some(username), Some(password)) = (username, password) {
-        config.set("sasl.mechanisms", "SCRAM-SHA-512")
+        config
+            .set("sasl.mechanisms", "SCRAM-SHA-512")
             .set("sasl.username", username)
             .set("sasl.password", password);
     }
@@ -88,7 +90,12 @@ async fn consume_partitions(
                 trace!("Pushed message to redis");
                 total += 1;
                 if total % 1000 == 0 {
-                    info!("Consumer {} pushed {} items since {:?}", id, total, start.elapsed());
+                    info!(
+                        "Consumer {} pushed {} items since {:?}",
+                        id,
+                        total,
+                        start.elapsed()
+                    );
                 }
             }
             Some(Err(err)) => {
@@ -143,7 +150,9 @@ impl AlertConsumer for LsstAlertConsumer {
         }
         let max_in_queue = max_in_queue.unwrap_or(15000);
         let topic = topic.unwrap_or("alerts-simulated").to_string();
-        let output_queue = output_queue.unwrap_or("LSST_alerts_packets_queue").to_string();
+        let output_queue = output_queue
+            .unwrap_or("LSST_alerts_packets_queue")
+            .to_string();
         let mut group_id = group_id.unwrap_or("example-ck").to_string();
         let server = server_url.unwrap_or(LSST_SERVER_URL).to_string();
 
@@ -176,14 +185,11 @@ impl AlertConsumer for LsstAlertConsumer {
             server,
         }
     }
-    
+
     fn default() -> Self {
         Self::new(1, None, None, None, None, None)
     }
-    async fn consume(
-        &self,
-        timestamp: i64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn consume(&self, timestamp: i64) -> Result<(), Box<dyn std::error::Error>> {
         // divide the 45 LSST partitions for the n_threads that will read them
         let partitions_per_thread = 45 / self.n_threads;
         let mut partitions = vec![vec![]; self.n_threads];
@@ -214,7 +220,8 @@ impl AlertConsumer for LsstAlertConsumer {
                     &server,
                     Some(&username),
                     Some(&password),
-                ).await;
+                )
+                .await;
                 if let Err(e) = result {
                     error!("Error consuming partitions: {:?}", e);
                 }
@@ -260,7 +267,9 @@ impl AlertConsumer for ZtfAlertConsumer {
         }
         let max_in_queue = max_in_queue.unwrap_or(15000);
         let topic = topic.unwrap_or("ztf").to_string();
-        let output_queue = output_queue.unwrap_or("ZTF_alerts_packets_queue").to_string();
+        let output_queue = output_queue
+            .unwrap_or("ZTF_alerts_packets_queue")
+            .to_string();
         let mut group_id = group_id.unwrap_or("example-ck").to_string();
         let server = server.unwrap_or(ZTF_SERVER_URL).to_string();
 
@@ -284,10 +293,7 @@ impl AlertConsumer for ZtfAlertConsumer {
         Self::new(1, None, None, None, None, None)
     }
 
-    async fn consume(
-        &self,
-        timestamp: i64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn consume(&self, timestamp: i64) -> Result<(), Box<dyn std::error::Error>> {
         let partitions_per_thread = 15 / self.n_threads;
         let mut partitions = vec![vec![]; self.n_threads];
         for i in 0..15 {
@@ -318,7 +324,8 @@ impl AlertConsumer for ZtfAlertConsumer {
                     &server,
                     None,
                     None,
-                ).await;
+                )
+                .await;
                 if let Err(e) = result {
                     error!("Error consuming partitions: {:?}", e);
                 }

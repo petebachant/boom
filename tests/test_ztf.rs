@@ -1,8 +1,5 @@
 use boom::{
-    alert::{
-        AlertWorker,
-        ZtfAlertWorker,
-    },
+    alert::{AlertWorker, ZtfAlertWorker},
     db::mongify,
 };
 

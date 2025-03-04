@@ -644,10 +644,7 @@ impl AlertWorker for LsstAlertWorker {
         format!("{}_alerts_filter_queue", self.stream_name)
     }
 
-    async fn process_alert(
-        self: &mut Self,
-        avro_bytes: &[u8],
-    ) -> Result<i64, AlertError> {
+    async fn process_alert(self: &mut Self, avro_bytes: &[u8]) -> Result<i64, AlertError> {
         let now = Time::now().to_jd();
 
         let mut alert = self.alert_from_avro_bytes(avro_bytes).await?;
@@ -673,12 +670,13 @@ impl AlertWorker for LsstAlertWorker {
             "updated_at": now,
         };
 
-        match self.alert_collection
-            .insert_one(alert_doc)
-            .await {
+        match self.alert_collection.insert_one(alert_doc).await {
             Ok(_) => {}
             Err(e) => {
-                if let mongodb::error::ErrorKind::Write(mongodb::error::WriteFailure::WriteError(ref write_error)) = *e.kind {
+                if let mongodb::error::ErrorKind::Write(mongodb::error::WriteFailure::WriteError(
+                    ref write_error,
+                )) = *e.kind
+                {
                     if write_error.code == 11000 {
                         return Err(AlertError::AlertExists);
                     } else {

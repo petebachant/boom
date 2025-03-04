@@ -120,4 +120,3 @@ fn test_catalogxmatchconfig() {
         assert!(catalog_xmatch_config.projection.len() > 0);
     }
 }
-

@@ -196,7 +196,10 @@ pub async fn fake_ml_worker(
                 .lpush::<&str, Vec<i64>, usize>(filter_queue.as_str(), candids)
                 .await
                 .unwrap();
-            info!("ML WORKER {}: pushed {} candids to {}", id, nb_candids, filter_queue);
+            info!(
+                "ML WORKER {}: pushed {} candids to {}",
+                id, nb_candids, filter_queue
+            );
         }
     }
 }

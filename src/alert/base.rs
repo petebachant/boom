@@ -3,12 +3,9 @@
 use crate::worker_util::WorkerCmd;
 use redis::AsyncCommands;
 use std::sync::mpsc::{self, TryRecvError};
-use tracing::{error, info, warn, trace};
+use tracing::{error, info, trace, warn};
 
-use crate::{
-    conf,
-    db::CreateIndexError,
-};
+use crate::{conf, db::CreateIndexError};
 
 #[derive(thiserror::Error, Debug)]
 pub enum SchemaRegistryError {
@@ -79,10 +76,8 @@ pub trait AlertWorker {
     fn stream_name(&self) -> String;
     fn input_queue_name(&self) -> String;
     fn output_queue_name(&self) -> String;
-    async fn process_alert(self: &mut Self, avro_bytes: &[u8])
-        -> Result<i64, AlertError>;
+    async fn process_alert(self: &mut Self, avro_bytes: &[u8]) -> Result<i64, AlertError>;
 }
-
 
 #[tokio::main]
 pub async fn run_alert_worker<T: AlertWorker>(
@@ -150,26 +145,24 @@ pub async fn run_alert_worker<T: AlertWorker>(
                 con.lrem::<&str, Vec<u8>, isize>(&temp_queue_name, 1, avro_bytes)
                     .await
                     .map_err(AlertWorkerError::RemoveAlertError)?;
-            },
-            Err(error) => {
-                match error {
-                    AlertError::AlertExists => {
-                        trace!("Alert already exists");
-                        con.lrem::<&str, Vec<u8>, isize>(&temp_queue_name, 1, avro_bytes)
-                            .await
-                            .map_err(AlertWorkerError::RemoveAlertError)?;
-                    },
-                    _ => {
-                        warn!(error = %error, "Error processing alert, requeueing");
-                        con.lpush::<&str, Vec<u8>, isize>(&input_queue_name, avro_bytes.clone())
-                            .await
-                            .map_err(AlertWorkerError::PushAlertError)?;
-                        con.lrem::<&str, Vec<u8>, isize>(&temp_queue_name, 1, avro_bytes)
-                            .await
-                            .map_err(AlertWorkerError::RemoveAlertError)?;
-                            }
-                        }
             }
+            Err(error) => match error {
+                AlertError::AlertExists => {
+                    trace!("Alert already exists");
+                    con.lrem::<&str, Vec<u8>, isize>(&temp_queue_name, 1, avro_bytes)
+                        .await
+                        .map_err(AlertWorkerError::RemoveAlertError)?;
+                }
+                _ => {
+                    warn!(error = %error, "Error processing alert, requeueing");
+                    con.lpush::<&str, Vec<u8>, isize>(&input_queue_name, avro_bytes.clone())
+                        .await
+                        .map_err(AlertWorkerError::PushAlertError)?;
+                    con.lrem::<&str, Vec<u8>, isize>(&temp_queue_name, 1, avro_bytes)
+                        .await
+                        .map_err(AlertWorkerError::RemoveAlertError)?;
+                }
+            },
         }
         if count % 1000 == 0 {
             let elapsed = start.elapsed().as_secs();

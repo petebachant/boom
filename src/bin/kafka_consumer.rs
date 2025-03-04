@@ -1,9 +1,9 @@
+use chrono::TimeZone;
 use clap::Parser;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-use chrono::TimeZone;
 
-use boom::kafka::{AlertConsumer, ZtfAlertConsumer, LsstAlertConsumer};
+use boom::kafka::{AlertConsumer, LsstAlertConsumer, ZtfAlertConsumer};
 
 #[derive(Parser)]
 struct Cli {
@@ -14,7 +14,7 @@ struct Cli {
     #[arg(help = "Number of processes to use to read the Kafka stream in parallel")]
     processes: Option<usize>,
     #[arg(help = "Clear the queue of alerts already consumed from Kafka and pushed to Redis")]
-    clear: Option<bool>
+    clear: Option<bool>,
 }
 
 #[tokio::main]
@@ -39,28 +39,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match survey.as_str() {
         "ZTF" => {
-            let consumer = ZtfAlertConsumer::new(
-                processes,
-                None,
-                None,
-                None,
-                None,
-                None,
-            );
+            let consumer = ZtfAlertConsumer::new(processes, None, None, None, None, None);
             if clear {
                 let _ = consumer.clear_output_queue();
             }
             consumer.consume(timestamp).await?;
         }
         "LSST" => {
-            let consumer = LsstAlertConsumer::new(
-                processes,
-                None,
-                None,
-                None,
-                None,
-                None,
-            );
+            let consumer = LsstAlertConsumer::new(processes, None, None, None, None, None);
             if clear {
                 let _ = consumer.clear_output_queue();
             }

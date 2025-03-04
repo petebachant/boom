@@ -1,8 +1,8 @@
+use crate::worker_util::WorkerCmd;
 use futures::stream::StreamExt;
 use mongodb::bson::{doc, Document};
 use std::{error::Error, fmt};
 use tracing::error;
-use crate::worker_util::WorkerCmd;
 
 #[derive(Debug)]
 pub struct FilterError {
@@ -16,55 +16,54 @@ impl fmt::Display for FilterError {
     }
 }
 
-
 pub async fn get_filter_object(
     filter_id: i32,
     catalog: &str,
-    filter_collection: &mongodb::Collection<mongodb::bson::Document>
+    filter_collection: &mongodb::Collection<mongodb::bson::Document>,
 ) -> Result<Document, Box<dyn Error>> {
     let filter_obj = filter_collection
-            .aggregate(vec![
-                doc! {
-                    "$match": doc! {
-                        "filter_id": filter_id,
-                        "active": true,
-                        "catalog": catalog
-                    }
-                },
-                doc! {
-                    "$project": doc! {
-                        "fv": doc! {
-                            "$filter": doc! {
-                                "input": "$fv",
-                                "as": "x",
-                                "cond": doc! {
-                                    "$eq": [
-                                        "$$x.fid",
-                                        "$active_fid"
-                                    ]
-                                }
+        .aggregate(vec![
+            doc! {
+                "$match": doc! {
+                    "filter_id": filter_id,
+                    "active": true,
+                    "catalog": catalog
+                }
+            },
+            doc! {
+                "$project": doc! {
+                    "fv": doc! {
+                        "$filter": doc! {
+                            "input": "$fv",
+                            "as": "x",
+                            "cond": doc! {
+                                "$eq": [
+                                    "$$x.fid",
+                                    "$active_fid"
+                                ]
                             }
-                        },
-                        "group_id": 1,
-                        "permissions": 1,
-                        "catalog": 1
-                    }
-                },
-                doc! {
-                    "$project": doc! {
-                        "pipeline": doc! {
-                            "$arrayElemAt": [
-                                "$fv.pipeline",
-                                0
-                            ]
-                        },
-                        "group_id": 1,
-                        "permissions": 1,
-                        "catalog": 1
-                    }
-                },
-            ])
-            .await;
+                        }
+                    },
+                    "group_id": 1,
+                    "permissions": 1,
+                    "catalog": 1
+                }
+            },
+            doc! {
+                "$project": doc! {
+                    "pipeline": doc! {
+                        "$arrayElemAt": [
+                            "$fv.pipeline",
+                            0
+                        ]
+                    },
+                    "group_id": 1,
+                    "permissions": 1,
+                    "catalog": 1
+                }
+            },
+        ])
+        .await;
 
     if let Err(e) = filter_obj {
         error!("Got ERROR when retrieving filter from database: {}", e);
@@ -106,8 +105,7 @@ pub async fn process_alerts(
     );
 
     // run filter
-    let mut result = alert_collection.aggregate(pipeline)
-        .await?; // is to_owned the fastest way to access self fields?
+    let mut result = alert_collection.aggregate(pipeline).await?; // is to_owned the fastest way to access self fields?
 
     let mut out_documents: Vec<Document> = Vec::new();
 
@@ -117,7 +115,6 @@ pub async fn process_alerts(
     }
     Ok(out_documents)
 }
-
 
 pub trait Filter {
     async fn build(
@@ -132,19 +129,17 @@ pub trait FilterWorker {
     async fn new(
         id: String,
         receiver: std::sync::mpsc::Receiver<WorkerCmd>,
-        config_path: &str
+        config_path: &str,
     ) -> Self;
 
-    async fn run(
-        &self
-    ) -> Result<(), Box<dyn Error>>;
+    async fn run(&self) -> Result<(), Box<dyn Error>>;
 }
 
 #[tokio::main]
 pub async fn run_filter_worker<T: FilterWorker>(
     id: String,
     receiver: std::sync::mpsc::Receiver<WorkerCmd>,
-    config_path: &str
+    config_path: &str,
 ) -> Result<(), Box<dyn Error>> {
     let filter_worker = T::new(id, receiver, config_path).await;
     filter_worker.run().await

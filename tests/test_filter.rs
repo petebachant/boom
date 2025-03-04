@@ -2,10 +2,10 @@ use mongodb::bson::{doc, Document};
 use tracing::{error, info};
 
 use boom::{
-    conf,
-    filter,
-    testing_util as tu,
     alert::{AlertWorker, ZtfAlertWorker},
+    conf,
+    filter::{process_alerts, Filter, ZtfFilter},
+    testing_util as tu,
 };
 
 const CONFIG_FILE: &str = "tests/config.test.yaml";
@@ -14,8 +14,9 @@ const CONFIG_FILE: &str = "tests/config.test.yaml";
 async fn test_build_filter() {
     let config_file = conf::load_config(CONFIG_FILE).unwrap();
     let db = conf::build_db(&config_file).await;
+    let filter_collection = db.collection("filters");
     tu::insert_test_filter().await;
-    let filter_result = filter::Filter::build(-1, &db).await;
+    let filter_result = ZtfFilter::build(-1, &filter_collection).await;
     tu::remove_test_filter().await;
     assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
@@ -45,7 +46,26 @@ async fn test_build_filter() {
     ];
     assert_eq!(pipeline, filter.pipeline);
     assert_eq!(vec![1], filter.permissions);
-    assert_eq!("ZTF_alerts", filter.catalog);
+}
+
+#[tokio::test]
+async fn test_filter_found() {
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
+    let db = conf::build_db(&config_file).await;
+    tu::insert_test_filter().await;
+    let filter_collection = db.collection("filters");
+    let filter_result = ZtfFilter::build(-1, &filter_collection).await;
+    tu::remove_test_filter().await;
+    assert!(filter_result.is_ok());
+}
+
+#[tokio::test]
+async fn test_no_filter_found() {
+    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
+    let db = conf::build_db(&config_file).await;
+    let filter_collection = db.collection("filters");
+    let filter_result = ZtfFilter::build(-2, &filter_collection).await;
+    assert!(filter_result.is_err());
 }
 
 // checks result of running filter
@@ -54,15 +74,18 @@ async fn test_run_filter() {
     tu::insert_test_filter().await;
     let config_file = conf::load_config(CONFIG_FILE).unwrap();
     let db = conf::build_db(&config_file).await;
-    let filter_result = filter::Filter::build(-1, &db).await;
+    let alert_collection = db.collection("ZTF_alerts");
+    let filter_collection = db.collection("filters");
+    let filter_result = ZtfFilter::build(-1, &filter_collection).await;
     tu::remove_test_filter().await;
     assert!(filter_result.is_ok());
-    let mut filter = filter_result.unwrap();
+    let filter = filter_result.unwrap();
 
     let test_col_name = "ZTF_alerts";
     let test_cutout_col_name = "ZTF_alerts_cutouts";
     let test_aux_col_name = "ZTF_alerts_aux";
-    let _ = tu::drop_alert_collections(&test_col_name, &test_cutout_col_name, &test_aux_col_name).await;
+    let _ =
+        tu::drop_alert_collections(&test_col_name, &test_cutout_col_name, &test_aux_col_name).await;
 
     let mut alert_worker = ZtfAlertWorker::new(CONFIG_FILE).await.unwrap();
     let file_name = "tests/data/alerts/ztf/2695378462115010012.avro";
@@ -73,7 +96,7 @@ async fn test_run_filter() {
     let candids = vec![result.unwrap()];
 
     info!("received {} candids from redis", candids.len());
-    let out_candids = filter.run(candids.clone(), &db).await;
+    let out_candids = process_alerts(candids, filter.pipeline, &alert_collection).await;
     match out_candids {
         Ok(out) => {
             assert_eq!(out.len(), 1);
@@ -89,51 +112,20 @@ async fn test_filter_no_alerts() {
     tu::insert_test_filter().await;
     let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
-    let filter_result = filter::Filter::build(-1, &db).await;
+    let alert_collection = db.collection("ZTF_alerts");
+    let filter_collection = db.collection("filters");
+    let filter_result = ZtfFilter::build(-1, &filter_collection).await;
     tu::remove_test_filter().await;
     assert!(filter_result.is_ok());
-    let mut filter = filter_result.unwrap();
-    
+    let filter = filter_result.unwrap();
+
     let candids: Vec<i64> = vec![1];
 
-    let out_candids = filter.run(candids.clone(), &db).await;
+    let out_candids = process_alerts(candids, filter.pipeline, &alert_collection).await;
     match out_candids {
         Err(e) => {
             error!("Error running filter: {}", e);
         }
         _ => {}
-    }
-}
-
-#[tokio::test]
-async fn test_no_filter_found() {
-    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
-    let filter = filter::Filter::build(-2, &db).await;
-    match filter {
-        Err(e) => {
-            assert!(e.is::<filter::FilterError>());
-            error!("error: {}", e);
-        }
-        _ => {
-            panic!("Was supposed to get error");
-        }
-    }
-}
-
-#[tokio::test]
-async fn test_filter_found() {
-    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
-    tu::insert_test_filter().await;
-    let filter = filter::Filter::build(-1, &db).await;
-    tu::remove_test_filter().await;
-    match filter {
-        Ok(_) => {
-            info!("successfully got filter from db");
-        }
-        Err(e) => {
-            panic!("ERROR, was supposed to find filter in database. {}", e);
-        }
     }
 }

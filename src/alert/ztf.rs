@@ -1,14 +1,14 @@
-use mongodb::bson::doc;
-use serde::{Deserialize, Deserializer};
-use apache_avro::from_value;
-use apache_avro::Reader;
-use flare::Time;
-use tracing::trace;
 use crate::{
-    alert::base::{AlertWorker, AlertError},
+    alert::base::{AlertError, AlertWorker},
     conf,
     db::{cutout2bsonbinary, get_coordinates, mongify},
 };
+use apache_avro::from_value;
+use apache_avro::Reader;
+use flare::Time;
+use mongodb::bson::doc;
+use serde::{Deserialize, Deserializer};
+use tracing::trace;
 
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Cutout {
@@ -29,9 +29,7 @@ pub struct PrvCandidate {
     pub programpi: Option<String>,
     pub programid: i32,
     pub candid: Option<i64>,
-    #[serde(
-        deserialize_with = "deserialize_isdiffpos_option"
-    )]
+    #[serde(deserialize_with = "deserialize_isdiffpos_option")]
     pub isdiffpos: Option<bool>,
     pub tblid: Option<i64>,
     pub nid: Option<i32>,
@@ -128,9 +126,7 @@ pub struct Candidate {
     pub programpi: Option<String>,
     pub programid: i32,
     pub candid: i64,
-    #[serde(
-        deserialize_with = "deserialize_isdiffpos"
-    )]
+    #[serde(deserialize_with = "deserialize_isdiffpos")]
     pub isdiffpos: bool,
     pub tblid: Option<i64>,
     pub nid: Option<i32>,
@@ -242,9 +238,7 @@ where
                 Ok(Some(false))
             }
         }
-        serde_json::Value::Number(n) => {
-            Ok(Some(n.as_i64().unwrap() == 1))
-        }
+        serde_json::Value::Number(n) => Ok(Some(n.as_i64().unwrap() == 1)),
         serde_json::Value::Bool(b) => Ok(Some(b)),
         _ => Ok(None),
     }
@@ -256,8 +250,6 @@ where
 {
     deserialize_isdiffpos_option(deserializer).map(|x| x.unwrap())
 }
-
-
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct ZtfAlert {
@@ -294,7 +286,6 @@ where
     Ok(cutout.map(|cutout| cutout.stamp_data))
 }
 
-
 pub struct ZtfAlertWorker {
     stream_name: String,
     xmatch_configs: Vec<conf::CatalogXmatchConfig>,
@@ -310,8 +301,7 @@ impl ZtfAlertWorker {
         avro_bytes: &[u8],
     ) -> Result<ZtfAlert, AlertError> {
         println!("got to the alert_from_avro_bytes function");
-        let reader = Reader::new(&avro_bytes[..])
-            .map_err(AlertError::DecodeError)?;
+        let reader = Reader::new(&avro_bytes[..]).map_err(AlertError::DecodeError)?;
 
         println!("got past the reader");
 
@@ -368,10 +358,7 @@ impl AlertWorker for ZtfAlertWorker {
         format!("{}_alerts_classifier_queue", self.stream_name)
     }
 
-    async fn process_alert(
-        self: &mut Self,
-        avro_bytes: &[u8],
-    ) -> Result<i64, AlertError> {
+    async fn process_alert(self: &mut Self, avro_bytes: &[u8]) -> Result<i64, AlertError> {
         let now = Time::now().to_jd();
 
         let mut alert = self.alert_from_avro_bytes(avro_bytes).await?;
