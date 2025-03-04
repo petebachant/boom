@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             consumer.consume(timestamp).await?;
         }
         "LSST" => {
-            let consumer = LsstAlertConsumer::new(processes, None, None, None, None, None);
+            let consumer = LsstAlertConsumer::new(processes, Some(20000), None, None, None, None);
             if clear {
                 let _ = consumer.clear_output_queue();
             }
