@@ -2,6 +2,7 @@ use crate::worker_util::WorkerCmd;
 use futures::stream::StreamExt;
 use mongodb::bson::{doc, Document};
 use std::{error::Error, fmt};
+use tokio::sync::mpsc;
 use tracing::error;
 
 #[derive(Debug)]
@@ -116,6 +117,7 @@ pub async fn process_alerts(
     Ok(out_documents)
 }
 
+#[async_trait::async_trait]
 pub trait Filter {
     async fn build(
         filter_id: i32,
@@ -125,22 +127,19 @@ pub trait Filter {
         Self: Sized;
 }
 
+#[async_trait::async_trait]
 pub trait FilterWorker {
-    async fn new(
-        id: String,
-        receiver: std::sync::mpsc::Receiver<WorkerCmd>,
-        config_path: &str,
-    ) -> Self;
+    async fn new(id: String, receiver: mpsc::Receiver<WorkerCmd>, config_path: &str) -> Self;
 
-    async fn run(&self) -> Result<(), Box<dyn Error>>;
+    async fn run(&mut self) -> Result<(), Box<dyn Error>>;
 }
 
 #[tokio::main]
 pub async fn run_filter_worker<T: FilterWorker>(
     id: String,
-    receiver: std::sync::mpsc::Receiver<WorkerCmd>,
+    receiver: mpsc::Receiver<WorkerCmd>,
     config_path: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let filter_worker = T::new(id, receiver, config_path).await;
+    let mut filter_worker = T::new(id, receiver, config_path).await;
     filter_worker.run().await
 }

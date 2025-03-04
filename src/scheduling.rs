@@ -4,7 +4,9 @@ use crate::{
     filter::{run_filter_worker, LsstFilterWorker, ZtfFilterWorker},
     worker_util::{WorkerCmd, WorkerType},
 };
-use std::{sync::mpsc, thread};
+use std::thread;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::SendError;
 use tracing::{error, info, warn};
 
 // Thread pool
@@ -46,10 +48,10 @@ impl ThreadPool {
     }
 
     /// Send a termination signal to each worker thread.
-    fn terminate(&self) {
+    async fn terminate(&self) {
         for worker in &self.workers {
             info!("sending termination signal to worker {}", &worker.id);
-            if let Err(error) = worker.terminate() {
+            if let Err(error) = worker.terminate().await {
                 warn!(
                     error = %error,
                     "failed to send termination signal to worker {}",
@@ -89,7 +91,9 @@ impl ThreadPool {
 // Shut down all workers from the thread pool and drop the threadpool
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        self.terminate();
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(self.terminate());
         self.join();
     }
 }
@@ -120,7 +124,7 @@ impl Worker {
         config_path: String,
     ) -> Worker {
         let id_copy = id.clone();
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel(1);
         let thread = match worker_type {
             // TODO: Spawn a new worker thread when one dies? (A supervisor or something like that?)
             WorkerType::Alert => thread::spawn(move || {
@@ -154,7 +158,7 @@ impl Worker {
     }
 
     /// Send a termination signal to the worker's thread.
-    fn terminate(&self) -> Result<(), mpsc::SendError<WorkerCmd>> {
-        self.sender.send(WorkerCmd::TERM)
+    async fn terminate(&self) -> Result<(), SendError<WorkerCmd>> {
+        self.sender.send(WorkerCmd::TERM).await
     }
 }

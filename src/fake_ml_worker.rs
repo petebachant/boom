@@ -7,7 +7,8 @@ use core::time;
 use futures::StreamExt;
 use mongodb::bson::{doc, Document};
 use redis::AsyncCommands;
-use std::{collections::HashMap, num::NonZero, sync::mpsc, thread};
+use std::{collections::HashMap, num::NonZero, thread};
+use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 // fake ml worker which, like the ML worker, receives alerts from the alert worker and sends them
@@ -15,7 +16,7 @@ use tracing::{info, warn};
 #[tokio::main]
 pub async fn fake_ml_worker(
     id: String,
-    receiver: mpsc::Receiver<WorkerCmd>,
+    mut receiver: mpsc::Receiver<WorkerCmd>,
     stream_name: String,
     config_path: String,
 ) {

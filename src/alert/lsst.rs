@@ -601,6 +601,7 @@ impl LsstAlertWorker {
     }
 }
 
+#[async_trait::async_trait]
 impl AlertWorker for LsstAlertWorker {
     async fn new(config_path: &str) -> Result<LsstAlertWorker, Box<dyn std::error::Error>> {
         let stream_name = "LSST".to_string();

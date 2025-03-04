@@ -3,12 +3,16 @@ use crate::worker_util::WorkerCmd;
 use mongodb::bson::{doc, Document};
 use redis::AsyncCommands;
 use std::{collections::HashMap, error::Error, num::NonZero};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TryRecvError;
+use tracing::{info, warn};
 
 pub struct LsstFilter {
     id: i32,
     pipeline: Vec<Document>,
 }
 
+#[async_trait::async_trait]
 impl Filter for LsstFilter {
     async fn build(
         filter_id: i32,
@@ -105,17 +109,14 @@ impl Filter for LsstFilter {
 
 pub struct LsstFilterWorker {
     id: String,
-    receiver: std::sync::mpsc::Receiver<WorkerCmd>,
+    receiver: mpsc::Receiver<WorkerCmd>,
     filter_collection: mongodb::Collection<mongodb::bson::Document>,
     alert_collection: mongodb::Collection<mongodb::bson::Document>,
 }
 
+#[async_trait::async_trait]
 impl FilterWorker for LsstFilterWorker {
-    async fn new(
-        id: String,
-        receiver: std::sync::mpsc::Receiver<WorkerCmd>,
-        config_path: &str,
-    ) -> Self {
+    async fn new(id: String, receiver: mpsc::Receiver<WorkerCmd>, config_path: &str) -> Self {
         let config_file = crate::conf::load_config(&config_path).unwrap();
         let db: mongodb::Database = crate::conf::build_db(&config_file).await;
         let alert_collection = db.collection("LSST_alerts");
@@ -129,7 +130,7 @@ impl FilterWorker for LsstFilterWorker {
         }
     }
 
-    async fn run(&self) -> Result<(), Box<dyn Error>> {
+    async fn run(&mut self) -> Result<(), Box<dyn Error>> {
         // query the DB to find the ids of all the filters for LSST that are active
         let filter_ids: Vec<i32> = self
             .filter_collection
@@ -163,13 +164,37 @@ impl FilterWorker for LsstFilterWorker {
             .get_multiplexed_async_connection()
             .await
             .unwrap();
+
+        let command_interval: i64 = 500;
+        let mut command_check_countdown = command_interval;
+
         loop {
+            if command_check_countdown == 0 {
+                match self.receiver.try_recv() {
+                    Ok(WorkerCmd::TERM) => {
+                        info!("filterworker {} received termination command", self.id);
+                        break;
+                    }
+                    Err(TryRecvError::Disconnected) => {
+                        warn!(
+                            "filter worker {} receiver disconnected, terminating",
+                            self.id
+                        );
+                        break;
+                    }
+                    Err(TryRecvError::Empty) => {
+                        command_check_countdown = command_interval;
+                    }
+                }
+            }
             // get candids from redis
             let candids: Vec<i64> = con
                 .rpop::<&str, Vec<i64>>(queue_name, NonZero::new(1000))
                 .await
                 .unwrap();
-            if candids.len() == 0 {
+
+            let nb_candids = candids.len();
+            if nb_candids == 0 {
                 continue;
             }
             // run the filters
@@ -191,6 +216,9 @@ impl FilterWorker for LsstFilterWorker {
                 // push them all at once
                 let _: () = con.lpush(queue_name, out_documents).await.unwrap();
             }
+            command_check_countdown -= nb_candids as i64;
         }
+
+        Ok(())
     }
 }

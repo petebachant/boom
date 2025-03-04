@@ -317,6 +317,7 @@ impl ZtfAlertWorker {
     }
 }
 
+#[async_trait::async_trait]
 impl AlertWorker for ZtfAlertWorker {
     async fn new(config_path: &str) -> Result<ZtfAlertWorker, Box<dyn std::error::Error>> {
         let stream_name = "ZTF".to_string();

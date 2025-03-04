@@ -2,7 +2,8 @@
 
 use crate::worker_util::WorkerCmd;
 use redis::AsyncCommands;
-use std::sync::mpsc::{self, TryRecvError};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{error, info, trace, warn};
 
 use crate::{conf, db::CreateIndexError};
@@ -69,6 +70,7 @@ pub enum AlertWorkerError {
     PushAlertError(#[source] redis::RedisError),
 }
 
+#[async_trait::async_trait]
 pub trait AlertWorker {
     async fn new(config_path: &str) -> Result<Self, Box<dyn std::error::Error>>
     where
@@ -82,7 +84,7 @@ pub trait AlertWorker {
 #[tokio::main]
 pub async fn run_alert_worker<T: AlertWorker>(
     id: String,
-    receiver: mpsc::Receiver<WorkerCmd>,
+    mut receiver: mpsc::Receiver<WorkerCmd>,
     config_path: &str,
 ) -> Result<(), AlertWorkerError> {
     let mut alert_processor = T::new(config_path).await.unwrap();
