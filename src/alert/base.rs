@@ -1,12 +1,10 @@
-#![allow(async_fn_in_trait)]
-
-use crate::worker_util::WorkerCmd;
 use redis::AsyncCommands;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{error, info, trace, warn};
 
-use crate::{conf, db::CreateIndexError};
+use crate::utils::worker::WorkerCmd;
+use crate::{conf, utils::db::CreateIndexError};
 
 #[derive(thiserror::Error, Debug)]
 pub enum SchemaRegistryError {

@@ -5,7 +5,7 @@ use boom::{
     alert::{AlertWorker, ZtfAlertWorker},
     conf,
     filter::{process_alerts, Filter, ZtfFilter},
-    testing_util as tu,
+    utils::testing,
 };
 
 const CONFIG_FILE: &str = "tests/config.test.yaml";
@@ -15,9 +15,9 @@ async fn test_build_filter() {
     let config_file = conf::load_config(CONFIG_FILE).unwrap();
     let db = conf::build_db(&config_file).await;
     let filter_collection = db.collection("filters");
-    tu::insert_test_filter().await;
+    testing::insert_test_filter().await;
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    tu::remove_test_filter().await;
+    testing::remove_test_filter().await;
     assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
     let pipeline: Vec<Document> = vec![
@@ -52,10 +52,10 @@ async fn test_build_filter() {
 async fn test_filter_found() {
     let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
-    tu::insert_test_filter().await;
+    testing::insert_test_filter().await;
     let filter_collection = db.collection("filters");
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    tu::remove_test_filter().await;
+    testing::remove_test_filter().await;
     assert!(filter_result.is_ok());
 }
 
@@ -71,13 +71,13 @@ async fn test_no_filter_found() {
 // checks result of running filter
 #[tokio::test]
 async fn test_run_filter() {
-    tu::insert_test_filter().await;
+    testing::insert_test_filter().await;
     let config_file = conf::load_config(CONFIG_FILE).unwrap();
     let db = conf::build_db(&config_file).await;
     let alert_collection = db.collection("ZTF_alerts");
     let filter_collection = db.collection("filters");
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    tu::remove_test_filter().await;
+    testing::remove_test_filter().await;
     assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
 
@@ -85,7 +85,8 @@ async fn test_run_filter() {
     let test_cutout_col_name = "ZTF_alerts_cutouts";
     let test_aux_col_name = "ZTF_alerts_aux";
     let _ =
-        tu::drop_alert_collections(&test_col_name, &test_cutout_col_name, &test_aux_col_name).await;
+        testing::drop_alert_collections(&test_col_name, &test_cutout_col_name, &test_aux_col_name)
+            .await;
 
     let mut alert_worker = ZtfAlertWorker::new(CONFIG_FILE).await.unwrap();
     let file_name = "tests/data/alerts/ztf/2695378462115010012.avro";
@@ -109,13 +110,13 @@ async fn test_run_filter() {
 
 #[tokio::test]
 async fn test_filter_no_alerts() {
-    tu::insert_test_filter().await;
+    testing::insert_test_filter().await;
     let config_file = conf::load_config("tests/config.test.yaml").unwrap();
     let db = conf::build_db(&config_file).await;
     let alert_collection = db.collection("ZTF_alerts");
     let filter_collection = db.collection("filters");
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    tu::remove_test_filter().await;
+    testing::remove_test_filter().await;
     assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
 

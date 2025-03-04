@@ -1,4 +1,8 @@
-use boom::{conf, scheduling::ThreadPool, worker_util, worker_util::WorkerType};
+use boom::{
+    conf,
+    scheduling::ThreadPool,
+    utils::worker::{check_flag, sig_int_handler, WorkerType},
+};
 use clap::Parser;
 use config::Config;
 use std::{
@@ -75,7 +79,7 @@ async fn main() {
 
     // setup signal handler thread
     let interrupt = Arc::new(Mutex::new(false));
-    worker_util::sig_int_handler(Arc::clone(&interrupt)).await;
+    sig_int_handler(Arc::clone(&interrupt)).await;
 
     info!("creating alert, ml, and filter workers...");
     let alert_pool = ThreadPool::new(
@@ -100,7 +104,7 @@ async fn main() {
 
     loop {
         info!("heart beat (MAIN)");
-        let exit = worker_util::check_flag(Arc::clone(&interrupt));
+        let exit = check_flag(Arc::clone(&interrupt));
         if exit {
             warn!("killed thread(s)");
             drop(alert_pool);

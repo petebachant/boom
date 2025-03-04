@@ -1,8 +1,8 @@
 use crate::{
     alert::{run_alert_worker, LsstAlertWorker, ZtfAlertWorker},
-    fake_ml_worker,
     filter::{run_filter_worker, LsstFilterWorker, ZtfFilterWorker},
-    worker_util::{WorkerCmd, WorkerType},
+    ml::run_ml_worker,
+    utils::worker::{WorkerCmd, WorkerType},
 };
 use std::thread;
 use tokio::sync::mpsc;
@@ -146,7 +146,7 @@ impl Worker {
                 }
             }),
             WorkerType::ML => thread::spawn(move || {
-                fake_ml_worker::fake_ml_worker(id, receiver, stream_name, config_path);
+                run_ml_worker(id, receiver, stream_name, config_path);
             }),
         };
 

@@ -1,9 +1,10 @@
-use crate::worker_util::WorkerCmd;
 use futures::stream::StreamExt;
 use mongodb::bson::{doc, Document};
 use std::{error::Error, fmt};
 use tokio::sync::mpsc;
 use tracing::error;
+
+use crate::utils::worker::WorkerCmd;
 
 #[derive(Debug)]
 pub struct FilterError {

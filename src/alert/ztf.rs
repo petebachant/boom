@@ -1,7 +1,10 @@
 use crate::{
     alert::base::{AlertError, AlertWorker},
     conf,
-    db::{cutout2bsonbinary, get_coordinates, mongify},
+    utils::{
+        db::{cutout2bsonbinary, get_coordinates, mongify},
+        spatial::xmatch,
+    },
 };
 use apache_avro::from_value;
 use apache_avro::Reader;
@@ -442,7 +445,7 @@ impl AlertWorker for ZtfAlertWorker {
                 "_id": &object_id,
                 "prv_candidates": prv_candidates_doc,
                 "fp_hists": fp_hist_doc,
-                "cross_matches": crate::spatial::xmatch(ra, dec, &self.xmatch_configs, &self.db).await,
+                "cross_matches": xmatch(ra, dec, &self.xmatch_configs, &self.db).await,
                 "created_at": now,
                 "updated_at": now,
                 "coordinates": {

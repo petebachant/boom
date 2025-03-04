@@ -1,7 +1,7 @@
 use crate::{
     conf,
-    fits::prepare_triplet,
-    worker_util::{self, WorkerCmd},
+    utils::fits::prepare_triplet,
+    utils::worker::{get_check_command_interval, WorkerCmd},
 };
 use core::time;
 use futures::StreamExt;
@@ -11,10 +11,9 @@ use std::{collections::HashMap, num::NonZero, thread};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
-// fake ml worker which, like the ML worker, receives alerts from the alert worker and sends them
-//      to streams
+// fake ml worker which for now does not run any models
 #[tokio::main]
-pub async fn fake_ml_worker(
+pub async fn run_ml_worker(
     id: String,
     mut receiver: mpsc::Receiver<WorkerCmd>,
     stream_name: String,
@@ -32,7 +31,7 @@ pub async fn fake_ml_worker(
         .unwrap();
 
     let mut alert_counter = 0;
-    let command_interval = worker_util::get_check_command_interval(config_file, &stream_name);
+    let command_interval = get_check_command_interval(config_file, &stream_name);
 
     loop {
         // check for interrupt from thread pool

@@ -8,7 +8,10 @@ use tracing::trace;
 use crate::{
     alert::base::{AlertError, AlertWorker, SchemaRegistryError},
     conf,
-    db::{cutout2bsonbinary, get_coordinates, mongify},
+    utils::{
+        db::{cutout2bsonbinary, get_coordinates, mongify},
+        spatial::xmatch,
+    },
 };
 
 const _MAGIC_BYTE: u8 = 0;
@@ -741,7 +744,7 @@ impl AlertWorker for LsstAlertWorker {
                 "_id": &object_id,
                 "prv_candidates": prv_candidates_doc,
                 "fp_hists": fp_hist_doc,
-                "cross_matches": crate::spatial::xmatch(ra, dec, &self.xmatch_configs, &self.db).await,
+                "cross_matches": xmatch(ra, dec, &self.xmatch_configs, &self.db).await,
                 "created_at": now,
                 "updated_at": now,
                 "coordinates": {

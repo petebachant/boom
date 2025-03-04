@@ -1,6 +1,6 @@
 use boom::{
     alert::{AlertWorker, ZtfAlertWorker},
-    db::mongify,
+    utils::db::mongify,
 };
 
 const CONFIG_FILE: &str = "tests/config.test.yaml";

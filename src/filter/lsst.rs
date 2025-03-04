@@ -1,11 +1,12 @@
-use crate::filter::{get_filter_object, process_alerts, Filter, FilterWorker};
-use crate::worker_util::WorkerCmd;
 use mongodb::bson::{doc, Document};
 use redis::AsyncCommands;
 use std::{collections::HashMap, error::Error, num::NonZero};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{info, warn};
+
+use crate::filter::{get_filter_object, process_alerts, Filter, FilterWorker};
+use crate::utils::worker::WorkerCmd;
 
 pub struct LsstFilter {
     id: i32,
