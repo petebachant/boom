@@ -1,5 +1,15 @@
 use crate::{
-    alert_worker, fake_ml_worker, filter_worker,
+    alert::{
+        run_alert_worker,
+        ZtfAlertWorker,
+        LsstAlertWorker,
+    },
+    fake_ml_worker,
+    filter::{
+        ZtfFilterWorker,
+        LsstFilterWorker,
+        run_filter_worker,
+    },
     worker_util::{WorkerCmd, WorkerType},
 };
 use std::{sync::mpsc, thread};
@@ -122,16 +132,24 @@ impl Worker {
         let thread = match worker_type {
             // TODO: Spawn a new worker thread when one dies? (A supervisor or something like that?)
             WorkerType::Alert => thread::spawn(move || {
-                if let Err(e) =
-                    alert_worker::alert_worker(&id, stream_name.clone(), &config_path, receiver)
-                {
-                    error!(id, stream_name, config_path, error = %e, "alert worker failed")
+                if stream_name == "ZTF" {
+                    let _ = run_alert_worker::<ZtfAlertWorker>(id, receiver, &config_path);
+                } else if stream_name == "LSST" {
+                    let _ = run_alert_worker::<LsstAlertWorker>(id, receiver, &config_path);
+                } else {
+                    panic!("Unknown stream name: {}", stream_name);
                 }
             }),
-            WorkerType::Filter => thread::spawn(|| {
-                let _ = filter_worker::filter_worker(id, receiver, stream_name, config_path);
+            WorkerType::Filter => thread::spawn(move || {
+                if stream_name == "ZTF" {
+                    let _ = run_filter_worker::<ZtfFilterWorker>(id, receiver, &config_path);
+                } else if stream_name == "LSST" {
+                    let _ = run_filter_worker::<LsstFilterWorker>(id, receiver, &config_path);
+                } else {
+                    panic!("Unknown stream name: {}", stream_name);
+                }
             }),
-            WorkerType::ML => thread::spawn(|| {
+            WorkerType::ML => thread::spawn(move || {
                 fake_ml_worker::fake_ml_worker(id, receiver, stream_name, config_path);
             }),
         };

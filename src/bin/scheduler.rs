@@ -48,7 +48,7 @@ fn get_num_workers(conf: Config, stream_name: &str, worker_type: &str) -> i64 {
 #[tokio::main]
 async fn main() {
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::INFO)
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
@@ -56,6 +56,7 @@ async fn main() {
     let args = Cli::parse();
 
     let stream_name = args.stream.unwrap();
+    info!("Starting scheduler for {} alert processing", stream_name);
 
     if !args.config.is_some() {
         warn!("No config file provided, using config.yaml");

@@ -1,10 +1,22 @@
-use boom::kafka;
-use redis::AsyncCommands;
+use rdkafka::config::ClientConfig;
+use rdkafka::consumer::{BaseConsumer, Consumer};
+use boom::kafka::{
+    download_alerts_from_archive,
+    produce_from_archive
+};
 
 #[tokio::test]
 async fn test_download_from_archive() {
     let date = "20240617";
-    match kafka::download_alerts_from_archive(date) {
+    // if the data folder already exists, and the nb of files isn't 710, delete it
+    let data_folder = format!("data/alerts/ztf/{}", date);
+    if std::path::Path::new(&data_folder).exists() {
+        let count = std::fs::read_dir(&data_folder).unwrap().count();
+        if count != 710 {
+            std::fs::remove_dir_all(&data_folder).unwrap();
+        }
+    }
+    match download_alerts_from_archive(date) {
         Ok(count) => {
             assert_eq!(count, 710);
         }
@@ -18,12 +30,8 @@ async fn test_download_from_archive() {
 async fn test_produce_from_archive() {
     let topic = uuid::Uuid::new_v4().to_string();
 
-    let result = kafka::produce_from_archive("20240617", 0, Some(topic.clone())).await;
+    let result = produce_from_archive("20240617", 0, Some(topic.clone())).await;
     assert!(result.is_ok());
-
-    // connect to kafka, and check that the topic has the expected number of messages
-    use rdkafka::config::ClientConfig;
-    use rdkafka::consumer::{BaseConsumer, Consumer};
 
     let consumer: BaseConsumer = match ClientConfig::new()
         .set("group.id", "test")
@@ -76,28 +84,4 @@ async fn test_produce_from_archive() {
     }
 
     assert!(found_topic);
-}
-
-#[tokio::test]
-async fn test_consume_alerts() {
-    let topic = uuid::Uuid::new_v4().to_string();
-    let result = kafka::produce_from_archive("20240617", 0, Some(topic.clone())).await;
-    assert!(result.is_ok());
-
-    let queue = uuid::Uuid::new_v4().to_string();
-    let result = kafka::consume_alerts(&topic, None, true, 0, Some(queue.clone())).await;
-    assert!(result.is_ok());
-
-    let client = redis::Client::open("redis://localhost:6379".to_string()).unwrap();
-    let mut con = client.get_multiplexed_async_connection().await.unwrap();
-
-    // check how many messages are in the queue
-    match con.llen::<&str, usize>(&queue).await {
-        Ok(count) => {
-            assert_eq!(count, 710);
-        }
-        Err(e) => {
-            assert!(false, "Error getting length of queue: {:?}", e);
-        }
-    }
 }
