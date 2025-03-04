@@ -118,14 +118,13 @@ pub fn download_alerts_from_archive(date: &str) -> Result<i64, Box<dyn std::erro
     }
 
     let data_folder = format!("data/alerts/ztf/{}", date);
+    std::fs::create_dir_all(&data_folder)?;
 
-    if std::path::Path::new(&data_folder).exists() && std::fs::read_dir(&data_folder)?.count() > 0 {
+    if std::fs::read_dir(&data_folder)?.count() > 0 {
         info!("Alerts already downloaded to {}", data_folder);
         let count = std::fs::read_dir(&data_folder).unwrap().count();
         return Ok(count as i64);
     }
-
-    std::fs::create_dir_all(&data_folder)?;
 
     info!("Downloading alerts for date {}", date);
     let url = format!(
@@ -136,6 +135,8 @@ pub fn download_alerts_from_archive(date: &str) -> Result<i64, Box<dyn std::erro
         .arg(&url)
         .arg("-P")
         .arg(&data_folder)
+        .arg("-O")
+        .arg(format!("{}/ztf_public_{}.tar.gz", data_folder, date))
         .output()?;
     if !output.status.success() {
         let error_msg = String::from_utf8_lossy(&output.stderr);
@@ -170,7 +171,7 @@ pub async fn produce_from_archive(
     date: &str,
     limit: i64,
     topic: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<i64, Box<dyn std::error::Error>> {
     match download_alerts_from_archive(&date) {
         Ok(count) => count,
         Err(e) => {
@@ -226,5 +227,5 @@ pub async fn produce_from_archive(
     // close producer
     producer.flush(std::time::Duration::from_secs(1)).unwrap();
 
-    Ok(())
+    Ok(total_pushed as i64)
 }

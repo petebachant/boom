@@ -2,33 +2,32 @@ use boom::kafka::{download_alerts_from_archive, produce_from_archive};
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
 
+use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
+
 #[tokio::test]
 async fn test_download_from_archive() {
-    let date = "20240617";
-    // if the data folder already exists, and the nb of files isn't 710, delete it
-    let data_folder = format!("data/alerts/ztf/{}", date);
-    if std::path::Path::new(&data_folder).exists() {
-        let count = std::fs::read_dir(&data_folder).unwrap().count();
-        if count != 710 {
-            std::fs::remove_dir_all(&data_folder).unwrap();
-        }
-    }
-    match download_alerts_from_archive(date) {
-        Ok(count) => {
-            assert_eq!(count, 710);
-        }
-        Err(e) => {
-            assert!(false, "Error downloading alerts: {:?}", e);
-        }
-    }
+    let date = "20231118";
+    let result = download_alerts_from_archive(date);
+    assert!(result.is_ok());
+    assert!(std::path::Path::new("data/alerts/ztf/20231118").exists());
+    assert_eq!(result.unwrap(), 271);
 }
 
 #[tokio::test]
 async fn test_produce_from_archive() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::INFO)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
     let topic = uuid::Uuid::new_v4().to_string();
 
     let result = produce_from_archive("20240617", 0, Some(topic.clone())).await;
     assert!(result.is_ok());
+    assert!(result.unwrap() == 710);
+    assert!(std::path::Path::new("data/alerts/ztf/20240617").exists());
 
     let consumer: BaseConsumer = match ClientConfig::new()
         .set("group.id", "test")
