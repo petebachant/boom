@@ -190,7 +190,8 @@ pub async fn run_ml_worker(
         }
 
         for (programid, candids) in candids_grouped {
-            let filter_queue = format!("{}_programid{}_filter_queue", stream_name, programid);
+            let filter_queue =
+                format!("{}_alerts_programid{}_filter_queue", stream_name, programid);
             let nb_candids = &candids.len();
             let _: usize = con
                 .lpush::<&str, Vec<i64>, usize>(filter_queue.as_str(), candids)

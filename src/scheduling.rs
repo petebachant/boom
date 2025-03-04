@@ -50,7 +50,10 @@ impl ThreadPool {
     /// Send a termination signal to each worker thread.
     async fn terminate(&self) {
         for worker in &self.workers {
-            info!("sending termination signal to worker {}", &worker.id);
+            info!(
+                "sending termination signal to worker {} (type: {})",
+                &worker.id, &self.worker_type
+            );
             if let Err(error) = worker.terminate().await {
                 warn!(
                     error = %error,
@@ -91,9 +94,7 @@ impl ThreadPool {
 // Shut down all workers from the thread pool and drop the threadpool
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(self.terminate());
+        futures::executor::block_on(self.terminate());
         self.join();
     }
 }

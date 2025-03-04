@@ -150,12 +150,17 @@ impl FilterWorker for LsstFilterWorker {
             filters.push(filter);
         }
 
+        if filters.is_empty() {
+            warn!("no filters found for LSST");
+            return Ok(());
+        }
+
         // LSST is simpler, there are no permissions so there is only one queue
-        let queue_name = "lsst_filter_queue";
+        let queue_name = "LSST_alerts_filter_queue";
         // create a list of output queues, one for each filter
         let mut filter_results_queues: HashMap<i32, String> = HashMap::new();
         for filter in &filters {
-            let queue_name = format!("lsst_filter_{}_results_queue", filter.id);
+            let queue_name = format!("LSST_alerts_filter_{}_results_queue", filter.id);
             filter_results_queues.insert(filter.id, queue_name);
         }
 
@@ -187,6 +192,12 @@ impl FilterWorker for LsstFilterWorker {
                         command_check_countdown = command_interval;
                     }
                 }
+            }
+            // if the queue is empty, wait for a bit and continue the loop
+            let queue_len: i64 = con.llen(queue_name).await.unwrap();
+            if queue_len == 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                continue;
             }
             // get candids from redis
             let candids: Vec<i64> = con

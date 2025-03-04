@@ -165,6 +165,12 @@ impl FilterWorker for ZtfFilterWorker {
                 .unwrap();
             filters.push(filter);
         }
+
+        if filters.is_empty() {
+            warn!("no filters found for ZTF");
+            return Ok(());
+        }
+
         // get the highest permissions accross all filters
         let mut max_permission = 0;
         for filter in &filters {
@@ -177,22 +183,22 @@ impl FilterWorker for ZtfFilterWorker {
         // create a list of queues to read from
         let mut queues: Vec<String> = Vec::new();
         for i in 0..=max_permission {
-            queues.push(format!("ztf_programid_{i}_filter_queue"));
+            queues.push(format!("ZTF_alerts_programid_{i}_filter_queue"));
         }
         // create a hashmap from queue name to index of the filters that should run on that queue
         let mut queue_to_filter: HashMap<String, Vec<usize>> = HashMap::new();
         for (i, filter) in filters.iter().enumerate() {
             for permission in &filter.permissions {
                 if !queue_to_filter
-                    .contains_key(&format!("ztf_programid_{permission}_filter_queue"))
+                    .contains_key(&format!("ZTF_alerts_programid_{permission}_filter_queue"))
                 {
                     queue_to_filter.insert(
-                        format!("ztf_programid_{permission}_filter_queue"),
+                        format!("ZTF_alerts_programid_{permission}_filter_queue"),
                         Vec::new(),
                     );
                 }
                 queue_to_filter
-                    .get_mut(&format!("ztf_programid_{permission}_filter_queue"))
+                    .get_mut(&format!("ZTF_alerts_programid_{permission}_filter_queue"))
                     .unwrap()
                     .push(i);
             }
@@ -201,7 +207,7 @@ impl FilterWorker for ZtfFilterWorker {
         // create a list of output queues, one for each filter
         let mut filter_results_queues: HashMap<i32, String> = HashMap::new();
         for filter in &filters {
-            let queue_name = format!("ztf_filter_{}_results_queue", filter.id);
+            let queue_name = format!("ZTF_alerts_filter_{}_results_queue", filter.id);
             filter_results_queues.insert(filter.id, queue_name);
         }
 
