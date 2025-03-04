@@ -16,7 +16,7 @@ impl Filter for ZtfFilter {
         filter_collection: &mongodb::Collection<mongodb::bson::Document>,
     ) -> Result<ZtfFilter, Box<dyn Error>> {
         // get filter object
-        let filter_obj = get_filter_object(filter_id, "ZTF", filter_collection).await?;
+        let filter_obj = get_filter_object(filter_id, "ZTF_alerts", filter_collection).await?;
 
         // get permissions
         let permissions = filter_obj
@@ -149,7 +149,7 @@ impl FilterWorker for ZtfFilterWorker {
         // query the DB to find the ids of all the filters for ZTF that are active
         let filter_ids: Vec<i32> = self
             .filter_collection
-            .distinct("filter_id", doc! {"active": true, "catalog": "ZTF"})
+            .distinct("filter_id", doc! {"active": true, "catalog": "ZTF_alerts"})
             .await
             .unwrap()
             .into_iter()

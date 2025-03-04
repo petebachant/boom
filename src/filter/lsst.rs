@@ -15,7 +15,7 @@ impl Filter for LsstFilter {
         filter_collection: &mongodb::Collection<mongodb::bson::Document>,
     ) -> Result<LsstFilter, Box<dyn Error>> {
         // get filter object
-        let filter_obj = get_filter_object(filter_id, "LSST", filter_collection).await?;
+        let filter_obj = get_filter_object(filter_id, "LSST_alerts", filter_collection).await?;
 
         // filter prefix (with permissions)
         let mut pipeline = vec![
@@ -133,7 +133,7 @@ impl FilterWorker for LsstFilterWorker {
         // query the DB to find the ids of all the filters for LSST that are active
         let filter_ids: Vec<i32> = self
             .filter_collection
-            .distinct("filter_id", doc! {"active": true, "catalog": "LSST"})
+            .distinct("filter_id", doc! {"active": true, "catalog": "LSST_alerts"})
             .await
             .unwrap()
             .into_iter()
