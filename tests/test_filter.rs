@@ -13,11 +13,11 @@ const CONFIG_FILE: &str = "tests/config.test.yaml";
 #[tokio::test]
 async fn test_build_filter() {
     let config_file = conf::load_config(CONFIG_FILE).unwrap();
-    let db = conf::build_db(&config_file).await;
+    let db = conf::build_db(&config_file).await.unwrap();
     let filter_collection = db.collection("filters");
-    testing::insert_test_filter().await;
+    testing::insert_test_filter().await.unwrap();
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    testing::remove_test_filter().await;
+    testing::remove_test_filter().await.unwrap();
     assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
     let pipeline: Vec<Document> = vec![
@@ -51,18 +51,18 @@ async fn test_build_filter() {
 #[tokio::test]
 async fn test_filter_found() {
     let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
-    testing::insert_test_filter().await;
+    let db = conf::build_db(&config_file).await.unwrap();
+    testing::insert_test_filter().await.unwrap();
     let filter_collection = db.collection("filters");
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    testing::remove_test_filter().await;
+    testing::remove_test_filter().await.unwrap();
     assert!(filter_result.is_ok());
 }
 
 #[tokio::test]
 async fn test_no_filter_found() {
     let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
+    let db = conf::build_db(&config_file).await.unwrap();
     let filter_collection = db.collection("filters");
     let filter_result = ZtfFilter::build(-2, &filter_collection).await;
     assert!(filter_result.is_err());
@@ -71,13 +71,13 @@ async fn test_no_filter_found() {
 // checks result of running filter
 #[tokio::test]
 async fn test_run_filter() {
-    testing::insert_test_filter().await;
+    testing::insert_test_filter().await.unwrap();
     let config_file = conf::load_config(CONFIG_FILE).unwrap();
-    let db = conf::build_db(&config_file).await;
+    let db = conf::build_db(&config_file).await.unwrap();
     let alert_collection = db.collection("ZTF_alerts");
     let filter_collection = db.collection("filters");
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    testing::remove_test_filter().await;
+    testing::remove_test_filter().await.unwrap();
     assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
 
@@ -110,13 +110,13 @@ async fn test_run_filter() {
 
 #[tokio::test]
 async fn test_filter_no_alerts() {
-    testing::insert_test_filter().await;
+    testing::insert_test_filter().await.unwrap();
     let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
+    let db = conf::build_db(&config_file).await.unwrap();
     let alert_collection = db.collection("ZTF_alerts");
     let filter_collection = db.collection("filters");
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
-    testing::remove_test_filter().await;
+    testing::remove_test_filter().await.unwrap();
     assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
 

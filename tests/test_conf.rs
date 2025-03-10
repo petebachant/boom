@@ -25,16 +25,14 @@ fn test_load_config() {
 
 #[test]
 fn test_build_xmatch_configs() {
-    let conf = conf::load_config("tests/config.test.yaml");
-
-    let conf = conf.unwrap();
+    let conf = conf::load_config("tests/config.test.yaml").unwrap();
 
     let crossmatches = conf.get_table("crossmatch").unwrap();
     let crossmatches_ztf = crossmatches.get("ZTF").cloned().unwrap();
     let crossmatches_ztf = crossmatches_ztf.into_array().unwrap();
     assert!(crossmatches_ztf.len() > 0);
 
-    let catalog_xmatch_configs = conf::build_xmatch_configs(&conf, "ZTF");
+    let catalog_xmatch_configs = conf::build_xmatch_configs(&conf, "ZTF").unwrap();
 
     assert_eq!(catalog_xmatch_configs.len(), 9);
 
@@ -67,9 +65,8 @@ fn test_build_xmatch_configs() {
 
 #[tokio::test]
 async fn test_build_db() {
-    let conf = conf::load_config("tests/config.test.yaml");
-    let conf = conf.unwrap();
-    let db = conf::build_db(&conf).await;
+    let conf = conf::load_config("tests/config.test.yaml").unwrap();
+    let db = conf::build_db(&conf).await.unwrap();
 
     // try a simple query to just validate that the connection works
     let _collections = db.list_collection_names().await.unwrap();
@@ -114,7 +111,7 @@ fn test_catalogxmatchconfig() {
     assert!(crossmatches_ztf.len() > 0);
 
     for crossmatch in crossmatches_ztf {
-        let catalog_xmatch_config = conf::CatalogXmatchConfig::from_config(crossmatch);
+        let catalog_xmatch_config = conf::CatalogXmatchConfig::from_config(crossmatch).unwrap();
         assert!(catalog_xmatch_config.catalog.len() > 0);
         assert!(catalog_xmatch_config.radius > 0.0);
         assert!(catalog_xmatch_config.projection.len() > 0);
