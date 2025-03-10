@@ -129,25 +129,48 @@ impl Worker {
         let thread = match worker_type {
             // TODO: Spawn a new worker thread when one dies? (A supervisor or something like that?)
             WorkerType::Alert => thread::spawn(move || {
-                if stream_name == "ZTF" {
-                    let _ = run_alert_worker::<ZtfAlertWorker>(id, receiver, &config_path);
-                } else if stream_name == "LSST" {
-                    let _ = run_alert_worker::<LsstAlertWorker>(id, receiver, &config_path);
-                } else {
-                    panic!("Unknown stream name: {}", stream_name);
+                let run = match stream_name.as_str() {
+                    "ZTF" => run_alert_worker::<ZtfAlertWorker>,
+                    "LSST" => run_alert_worker::<LsstAlertWorker>,
+                    _ => {
+                        error!("Unknown stream name: {}", stream_name);
+                        return;
+                    }
+                };
+                if let Err(error) = run(id, receiver, &config_path) {
+                    error!(error = %error, "failed to run alert worker");
                 }
             }),
             WorkerType::Filter => thread::spawn(move || {
-                if stream_name == "ZTF" {
-                    let _ = run_filter_worker::<ZtfFilterWorker>(id, receiver, &config_path);
-                } else if stream_name == "LSST" {
-                    let _ = run_filter_worker::<LsstFilterWorker>(id, receiver, &config_path);
-                } else {
-                    panic!("Unknown stream name: {}", stream_name);
+                let run = match stream_name.as_str() {
+                    "ZTF" => run_filter_worker::<ZtfFilterWorker>,
+                    "LSST" => run_filter_worker::<LsstFilterWorker>,
+                    _ => {
+                        error!("Unknown stream name: {}", stream_name);
+                        return;
+                    }
+                };
+                if let Err(error) = run(id, receiver, &config_path) {
+                    error!(error = %error, "failed to run filter worker");
                 }
             }),
             WorkerType::ML => thread::spawn(move || {
-                run_ml_worker(id, receiver, stream_name, config_path);
+                let run = match stream_name.as_str() {
+                    "ZTF" => run_ml_worker,
+                    // we don't have an ML worker for LSST yet
+                    "LSST" => {
+                        error!("LSST ML worker not implemented");
+                        return;
+                    }
+                    _ => {
+                        error!("Unknown stream name: {}", stream_name);
+                        return;
+                    }
+                };
+
+                if let Err(error) = run(id, receiver, &stream_name, &config_path) {
+                    error!(error = %error, "failed to run ml worker");
+                }
             }),
         };
 

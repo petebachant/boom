@@ -5,109 +5,144 @@ use config::File;
 use std::path::Path;
 use tracing::error;
 
-pub use config::ConfigError;
+#[derive(thiserror::Error, Debug)]
+pub enum BoomConfigError {
+    #[error("could not find config file")]
+    ConfigFileNotFound,
+    #[error("failed to load config")]
+    InvalidConfigError(#[from] config::ConfigError),
+    #[error("missing key in config")]
+    MissingKeyError,
+    #[error("failed to connect to database using config")]
+    ConnectMongoError(#[from] mongodb::error::Error),
+}
 
-pub fn load_config(filepath: &str) -> Result<Config, ConfigError> {
+pub fn load_config(filepath: &str) -> Result<Config, BoomConfigError> {
     let path = Path::new(filepath);
 
     if !path.exists() {
-        error!("Config file {} does not exist.", path.display())
+        return Err(BoomConfigError::ConfigFileNotFound);
     }
 
     let conf = Config::builder()
         .add_source(File::with_name(filepath))
-        .build()?;
+        .build()
+        .map_err(BoomConfigError::InvalidConfigError)?;
     Ok(conf)
 }
 
-pub fn build_xmatch_configs(conf: &Config, stream_name: &str) -> Vec<CatalogXmatchConfig> {
+pub fn build_xmatch_configs(
+    conf: &Config,
+    stream_name: &str,
+) -> Result<Vec<CatalogXmatchConfig>, BoomConfigError> {
     let crossmatches = conf
         .get_table("crossmatch")
-        .expect("crossmatches key not found");
-    let crossmatches_stream = crossmatches.get(stream_name).cloned();
-    if crossmatches_stream.is_none() {
-        return Vec::new();
-    }
+        .map_err(BoomConfigError::InvalidConfigError)?;
+
+    let crossmatches_stream = match crossmatches.get(stream_name).cloned() {
+        Some(x) => x,
+        None => {
+            return Ok(Vec::new());
+        }
+    };
     let mut catalog_xmatch_configs = Vec::new();
 
-    for crossmatch in crossmatches_stream.unwrap().clone().into_array().unwrap() {
-        let catalog_xmatch_config = CatalogXmatchConfig::from_config(crossmatch);
+    for crossmatch in crossmatches_stream
+        .into_array()
+        .map_err(BoomConfigError::InvalidConfigError)?
+    {
+        let catalog_xmatch_config = CatalogXmatchConfig::from_config(crossmatch)?;
         catalog_xmatch_configs.push(catalog_xmatch_config);
     }
 
-    catalog_xmatch_configs
+    Ok(catalog_xmatch_configs)
 }
 
-pub async fn build_db(conf: &Config) -> mongodb::Database {
-    let db_conf = conf.get_table("database").unwrap();
+pub async fn build_db(conf: &Config) -> Result<mongodb::Database, BoomConfigError> {
+    let db_conf = conf
+        .get_table("database")
+        .map_err(BoomConfigError::InvalidConfigError)?;
 
-    let host = {
-        if let Some(host) = db_conf.get("host") {
-            host.clone().into_string().unwrap()
-        } else {
-            "localhost".to_string()
-        }
+    let host = match db_conf.get("host") {
+        Some(host) => host
+            .clone()
+            .into_string()
+            .map_err(BoomConfigError::InvalidConfigError)?,
+        None => "localhost".to_string(),
     };
 
-    let port = {
-        if let Some(port) = db_conf.get("port") {
-            port.clone().into_int().unwrap() as u16
-        } else {
-            27017
-        }
+    let port = match db_conf.get("port") {
+        Some(port) => port
+            .clone()
+            .into_int()
+            .map_err(BoomConfigError::InvalidConfigError)? as u16,
+        None => 27017,
     };
 
-    let name = {
-        if let Some(name) = db_conf.get("name") {
-            name.clone().into_string().unwrap()
-        } else {
-            "boom".to_string()
-        }
+    let name = match db_conf.get("name") {
+        Some(name) => name
+            .clone()
+            .into_string()
+            .map_err(BoomConfigError::InvalidConfigError)?,
+        None => "boom".to_string(),
     };
 
-    let max_pool_size = {
-        if let Some(max_pool_size) = db_conf.get("max_pool_size") {
-            Some(max_pool_size.clone().into_int().unwrap() as u32)
-        } else {
-            None
-        }
+    let max_pool_size = match db_conf.get("max_pool_size") {
+        Some(max_pool_size) => Some(
+            max_pool_size
+                .clone()
+                .into_int()
+                .map_err(BoomConfigError::InvalidConfigError)? as u32,
+        ),
+        None => None,
     };
 
-    let replica_set = {
-        if let Some(replica_set) = db_conf.get("replica_set") {
-            // could be a string, or could be None
+    let replica_set = match db_conf.get("replica_set") {
+        Some(replica_set) => {
             if replica_set.clone().into_string().is_ok() {
-                Some(replica_set.clone().into_string().unwrap())
+                Some(
+                    replica_set
+                        .clone()
+                        .into_string()
+                        .map_err(BoomConfigError::InvalidConfigError)?,
+                )
             } else {
                 None
             }
-        } else {
-            None
         }
+        None => None,
     };
 
-    let username = {
-        if let Some(username) = db_conf.get("username") {
+    let username = match db_conf.get("username") {
+        Some(username) => {
             if username.clone().into_string().is_ok() {
-                Some(username.clone().into_string().unwrap())
+                Some(
+                    username
+                        .clone()
+                        .into_string()
+                        .map_err(BoomConfigError::InvalidConfigError)?,
+                )
             } else {
                 None
             }
-        } else {
-            None
         }
+        None => None,
     };
 
-    let password = {
-        if let Some(password) = db_conf.get("password") {
+    let password = match db_conf.get("password") {
+        Some(password) => {
             if password.clone().into_string().is_ok() {
-                Some(password.clone().into_string().unwrap())
+                Some(
+                    password
+                        .clone()
+                        .into_string()
+                        .map_err(BoomConfigError::InvalidConfigError)?,
+                )
             } else {
                 None
             }
-        } else {
-            None
         }
+        None => None,
     };
 
     // verify that if username or password is set, both are set
@@ -119,17 +154,17 @@ pub async fn build_db(conf: &Config) -> mongodb::Database {
         panic!("password is set but username is not set");
     }
 
-    // if srv is True, the uri will be mongodb+srv://
-    let prefix = {
-        if let Some(srv) = db_conf.get("srv") {
-            if srv.clone().into_bool().unwrap() {
-                "mongodb+srv://"
-            } else {
-                "mongodb://"
-            }
-        } else {
-            "mongodb://"
-        }
+    let use_srv = match db_conf.get("srv") {
+        Some(srv) => srv
+            .clone()
+            .into_bool()
+            .map_err(BoomConfigError::InvalidConfigError)?,
+        None => false,
+    };
+
+    let prefix = match use_srv {
+        true => "mongodb+srv://",
+        false => "mongodb://",
     };
 
     let mut uri = prefix.to_string();
@@ -164,10 +199,12 @@ pub async fn build_db(conf: &Config) -> mongodb::Database {
         uri.push_str(&format!("&maxPoolSize={}", max_pool_size));
     }
 
-    let client_mongo = mongodb::Client::with_uri_str(&uri).await.unwrap();
+    let client_mongo = mongodb::Client::with_uri_str(&uri)
+        .await
+        .map_err(BoomConfigError::ConnectMongoError)?;
     let db = client_mongo.database(&name);
 
-    db
+    Ok(db)
 }
 
 #[derive(Debug)]
@@ -203,72 +240,78 @@ impl CatalogXmatchConfig {
     }
 
     // based on the code in the main function, create a from_config function
-    pub fn from_config(config_value: Value) -> CatalogXmatchConfig {
-        let hashmap_xmatch = config_value.into_table().unwrap();
+    pub fn from_config(config_value: Value) -> Result<CatalogXmatchConfig, BoomConfigError> {
+        let hashmap_xmatch = config_value
+            .into_table()
+            .map_err(BoomConfigError::InvalidConfigError)?;
 
-        // any of the fields can be missing, so we need to carefully handle the Option type
-        let catalog = {
-            if let Some(catalog) = hashmap_xmatch.get("catalog") {
-                catalog.clone().into_string().unwrap()
-            } else {
-                // raise an error
-                panic!("catalog field is missing");
-            }
+        let catalog = hashmap_xmatch
+            .get("catalog")
+            .ok_or(BoomConfigError::MissingKeyError)?
+            .clone()
+            .into_string()
+            .map_err(BoomConfigError::InvalidConfigError)?;
+
+        let radius = hashmap_xmatch
+            .get("radius")
+            .ok_or(BoomConfigError::MissingKeyError)?
+            .clone()
+            .into_float()
+            .map_err(BoomConfigError::InvalidConfigError)?;
+
+        let projection = hashmap_xmatch
+            .get("projection")
+            .ok_or(BoomConfigError::MissingKeyError)?
+            .clone()
+            .into_table()
+            .map_err(BoomConfigError::InvalidConfigError)?;
+
+        let use_distance = match hashmap_xmatch.get("use_distance") {
+            Some(use_distance) => use_distance
+                .clone()
+                .into_bool()
+                .map_err(BoomConfigError::InvalidConfigError)?,
+            None => false,
         };
 
-        let radius = {
-            if let Some(radius) = hashmap_xmatch.get("radius") {
-                radius.clone().into_float().unwrap()
-            } else {
-                panic!("radius field is missing");
-            }
+        let distance_key = match hashmap_xmatch.get("distance_key") {
+            Some(distance_key) => Some(
+                distance_key
+                    .clone()
+                    .into_string()
+                    .map_err(BoomConfigError::InvalidConfigError)?,
+            ),
+            None => None,
         };
 
-        let projection = {
-            if let Some(projection) = hashmap_xmatch.get("projection") {
-                projection.clone().into_table().unwrap()
-            } else {
-                panic!("projection field is missing");
-            }
+        let distance_max = match hashmap_xmatch.get("distance_max") {
+            Some(distance_max) => Some(
+                distance_max
+                    .clone()
+                    .into_float()
+                    .map_err(BoomConfigError::InvalidConfigError)?,
+            ),
+            None => None,
         };
 
-        let use_distance = {
-            if let Some(use_distance) = hashmap_xmatch.get("use_distance") {
-                use_distance.clone().into_bool().unwrap()
-            } else {
-                false
-            }
-        };
-
-        let distance_key = {
-            if let Some(distance_key) = hashmap_xmatch.get("distance_key") {
-                Some(distance_key.clone().into_string().unwrap())
-            } else {
-                None
-            }
-        };
-
-        let distance_max = {
-            if let Some(distance_max) = hashmap_xmatch.get("distance_max") {
-                Some(distance_max.clone().into_float().unwrap())
-            } else {
-                None
-            }
-        };
-
-        let distance_max_near = {
-            if let Some(distance_max_near) = hashmap_xmatch.get("distance_max_near") {
-                Some(distance_max_near.clone().into_float().unwrap())
-            } else {
-                None
-            }
+        let distance_max_near = match hashmap_xmatch.get("distance_max_near") {
+            Some(distance_max_near) => Some(
+                distance_max_near
+                    .clone()
+                    .into_float()
+                    .map_err(BoomConfigError::InvalidConfigError)?,
+            ),
+            None => None,
         };
 
         // projection is a hashmap, we need to convert it to a Document
         let mut projection_doc = mongodb::bson::Document::new();
         for (key, value) in projection.iter() {
             let key = key.as_str();
-            let value = value.clone().into_int().unwrap();
+            let value = value
+                .clone()
+                .into_int()
+                .map_err(BoomConfigError::InvalidConfigError)?;
             projection_doc.insert(key, value);
         }
 
@@ -286,7 +329,7 @@ impl CatalogXmatchConfig {
             }
         }
 
-        CatalogXmatchConfig::new(
+        Ok(CatalogXmatchConfig::new(
             &catalog,
             radius,
             projection_doc,
@@ -294,6 +337,6 @@ impl CatalogXmatchConfig {
             distance_key,
             distance_max,
             distance_max_near,
-        )
+        ))
     }
 }

@@ -9,15 +9,17 @@ use crate::{conf, utils::db::CreateIndexError};
 #[derive(thiserror::Error, Debug)]
 pub enum SchemaRegistryError {
     #[error("invalid schema")]
-    InvalidSchema,
+    InvalidSchema(#[source] apache_avro::Error),
     #[error("invalid version")]
     InvalidVersion,
     #[error("invalid subject")]
     InvalidSubject,
     #[error("connection error")]
-    ConnectionError,
+    ConnectionError(#[source] reqwest::Error),
     #[error("parsing error")]
-    ParsingError,
+    ParsingError(#[source] reqwest::Error),
+    #[error("could not find expected content in response")]
+    InvalidResponse,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -44,16 +46,26 @@ pub enum AlertError {
     SchemaRegistryError(#[from] SchemaRegistryError),
     #[error("alert already exists")]
     AlertExists,
+    #[error("missing object_id")]
+    MissingObjectId,
+    #[error("missing cutout")]
+    MissingCutout,
+    #[error("missing alert in avro")]
+    EmptyAlertError,
+    #[error("failed to read avro")]
+    AvroReadError(#[source] apache_avro::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum AlertWorkerError {
     #[error("failed to load config")]
-    LoadConfigError(#[from] conf::ConfigError),
+    LoadConfigError(#[from] conf::BoomConfigError),
     #[error("failed to create index")]
     CreateIndexError(#[from] CreateIndexError),
     #[error("failed to connect to redis")]
     ConnectRedisError(#[source] redis::RedisError),
+    #[error("failed to connect to mongodb")]
+    ConnectMongoError(#[source] mongodb::error::Error),
     #[error("failed to get alert schema")]
     GetAlertSchemaError,
     #[error("failed to pop from the alert queue")]
@@ -70,7 +82,7 @@ pub enum AlertWorkerError {
 
 #[async_trait::async_trait]
 pub trait AlertWorker {
-    async fn new(config_path: &str) -> Result<Self, Box<dyn std::error::Error>>
+    async fn new(config_path: &str) -> Result<Self, AlertWorkerError>
     where
         Self: Sized;
     fn stream_name(&self) -> String;
@@ -85,18 +97,19 @@ pub async fn run_alert_worker<T: AlertWorker>(
     mut receiver: mpsc::Receiver<WorkerCmd>,
     config_path: &str,
 ) -> Result<(), AlertWorkerError> {
-    let mut alert_processor = T::new(config_path).await.unwrap();
+    let mut alert_processor = T::new(config_path).await?;
     let stream_name = alert_processor.stream_name();
 
     let input_queue_name = alert_processor.input_queue_name();
     let temp_queue_name = format!("{}_temp", input_queue_name);
     let output_queue_name = alert_processor.output_queue_name();
 
-    let client_redis = redis::Client::open("redis://localhost:6379".to_string()).unwrap();
+    let client_redis = redis::Client::open("redis://localhost:6379".to_string())
+        .map_err(AlertWorkerError::ConnectRedisError)?;
     let mut con = client_redis
         .get_multiplexed_async_connection()
         .await
-        .unwrap();
+        .map_err(AlertWorkerError::ConnectRedisError)?;
 
     let command_interval: i64 = 500;
     let mut command_check_countdown = command_interval;

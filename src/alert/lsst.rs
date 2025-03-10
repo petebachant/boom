@@ -2,11 +2,10 @@ use apache_avro::{from_avro_datum, from_value, Schema};
 use flare::Time;
 use mongodb::bson::doc;
 use std::collections::HashMap;
-use std::io::Read;
 use tracing::trace;
 
 use crate::{
-    alert::base::{AlertError, AlertWorker, SchemaRegistryError},
+    alert::base::{AlertError, AlertWorker, AlertWorkerError, SchemaRegistryError},
     conf,
     utils::{
         db::{cutout2bsonbinary, get_coordinates, mongify},
@@ -480,19 +479,15 @@ impl LsstAlertWorker {
             .client
             .get(&format!("{}/subjects", _SCHEMA_REGISTRY_URL))
             .send()
-            .await;
+            .await
+            .map_err(SchemaRegistryError::ConnectionError)?;
 
-        if response.is_err() {
-            return Err(SchemaRegistryError::ConnectionError);
-        }
+        let response = response
+            .json::<Vec<String>>()
+            .await
+            .map_err(SchemaRegistryError::ParsingError)?;
 
-        let response = response.unwrap().json::<Vec<String>>().await;
-
-        if response.is_err() {
-            return Err(SchemaRegistryError::ParsingError);
-        }
-
-        Ok(response.unwrap())
+        Ok(response)
     }
 
     async fn get_versions(&self, subject: &str) -> Result<Vec<u32>, SchemaRegistryError> {
@@ -509,19 +504,15 @@ impl LsstAlertWorker {
                 _SCHEMA_REGISTRY_URL, subject
             ))
             .send()
-            .await;
+            .await
+            .map_err(SchemaRegistryError::ConnectionError)?;
 
-        if response.is_err() {
-            return Err(SchemaRegistryError::ConnectionError);
-        }
+        let response = response
+            .json::<Vec<u32>>()
+            .await
+            .map_err(SchemaRegistryError::ParsingError)?;
 
-        let response = response.unwrap().json::<Vec<u32>>().await;
-
-        if response.is_err() {
-            return Err(SchemaRegistryError::ParsingError);
-        }
-
-        Ok(response.unwrap())
+        Ok(response)
     }
 
     async fn _get_schema_by_id(
@@ -541,25 +532,19 @@ impl LsstAlertWorker {
                 _SCHEMA_REGISTRY_URL, subject, version
             ))
             .send()
-            .await;
+            .await
+            .map_err(SchemaRegistryError::ConnectionError)?;
 
-        if response.is_err() {
-            return Err(SchemaRegistryError::ConnectionError);
-        }
-        let response = response.unwrap().json::<serde_json::Value>().await;
-
-        if response.is_err() {
-            return Err(SchemaRegistryError::ParsingError);
-        }
-
-        let response = response.unwrap();
+        let response = response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(SchemaRegistryError::ParsingError)?;
 
         let schema_str = response["schema"]
             .as_str()
-            .ok_or(SchemaRegistryError::ParsingError)?;
+            .ok_or(SchemaRegistryError::InvalidResponse)?;
 
-        let schema =
-            Schema::parse_str(schema_str).map_err(|_| SchemaRegistryError::InvalidSchema)?;
+        let schema = Schema::parse_str(schema_str).map_err(SchemaRegistryError::InvalidSchema)?;
         Ok(schema)
     }
 
@@ -568,35 +553,28 @@ impl LsstAlertWorker {
         subject: &str,
         version: u32,
     ) -> Result<&Schema, SchemaRegistryError> {
-        if self.cache.contains_key(&format!("{}:{}", subject, version)) {
-            return Ok(self.cache.get(&format!("{}:{}", subject, version)).unwrap());
+        let key = format!("{}:{}", subject, version);
+        if !self.cache.contains_key(&key) {
+            let schema = self._get_schema_by_id(subject, version).await?;
+            self.cache.insert(key.clone(), schema);
         }
-        let schema = self._get_schema_by_id(subject, version).await?;
-        self.cache
-            .insert(format!("{}:{}", subject, version), schema);
-        Ok(self.cache.get(&format!("{}:{}", subject, version)).unwrap())
+        Ok(self.cache.get(&key).unwrap())
     }
 
     async fn alert_from_avro_bytes(
         self: &mut Self,
         avro_bytes: &[u8],
     ) -> Result<LsstAlert, AlertError> {
-        let mut cursor = std::io::Cursor::new(avro_bytes);
-
-        let mut buffer = [0; 5];
-        cursor.read_exact(&mut buffer).unwrap();
-
-        let magic = buffer[0];
+        let magic = avro_bytes[0];
         if magic != _MAGIC_BYTE {
             return Err(AlertError::MagicBytesError);
         }
-        let schema_id = u32::from_be_bytes([buffer[1], buffer[2], buffer[3], buffer[4]]);
-        let schema = self
-            .get_schema("alert-packet", schema_id)
-            .await
-            .map_err(|e| AlertError::from(e))?;
+        let schema_id =
+            u32::from_be_bytes([avro_bytes[1], avro_bytes[2], avro_bytes[3], avro_bytes[4]]);
+        let schema = self.get_schema("alert-packet", schema_id).await?;
 
-        let value = from_avro_datum(&schema, &mut cursor, None).map_err(AlertError::DecodeError)?;
+        let mut slice = &avro_bytes[5..];
+        let value = from_avro_datum(&schema, &mut slice, None).map_err(AlertError::DecodeError)?;
 
         let alert: LsstAlert = from_value::<LsstAlert>(&value).map_err(AlertError::DecodeError)?;
 
@@ -606,18 +584,14 @@ impl LsstAlertWorker {
 
 #[async_trait::async_trait]
 impl AlertWorker for LsstAlertWorker {
-    async fn new(config_path: &str) -> Result<LsstAlertWorker, Box<dyn std::error::Error>> {
+    async fn new(config_path: &str) -> Result<LsstAlertWorker, AlertWorkerError> {
         let stream_name = "LSST".to_string();
 
-        let config_file = conf::load_config(&config_path).unwrap();
+        let config_file = conf::load_config(&config_path)?;
 
-        let xmatch_configs = conf::build_xmatch_configs(&config_file, "LSST");
+        let xmatch_configs = conf::build_xmatch_configs(&config_file, "LSST")?;
 
-        let db: mongodb::Database = conf::build_db(&config_file).await;
-        if let Err(e) = db.list_collection_names().await {
-            // error!("Error connecting to the database: {}", e);
-            return Err(Box::new(e));
-        }
+        let db: mongodb::Database = conf::build_db(&config_file).await?;
 
         let alert_collection = db.collection(&format!("{}_alerts", stream_name));
         let alert_aux_collection = db.collection(&format!("{}_alerts_aux", stream_name));
@@ -659,7 +633,10 @@ impl AlertWorker for LsstAlertWorker {
         let fp_hist = alert.fp_hists.take();
 
         let candid = alert.candid;
-        let object_id = alert.candidate.object_id.unwrap();
+        let object_id = alert
+            .candidate
+            .object_id
+            .ok_or(AlertError::MissingObjectId)?;
         let ra = alert.candidate.ra;
         let dec = alert.candidate.dec;
 
@@ -674,23 +651,15 @@ impl AlertWorker for LsstAlertWorker {
             "updated_at": now,
         };
 
-        match self.alert_collection.insert_one(alert_doc).await {
-            Ok(_) => {}
-            Err(e) => {
-                if let mongodb::error::ErrorKind::Write(mongodb::error::WriteFailure::WriteError(
-                    ref write_error,
-                )) = *e.kind
-                {
-                    if write_error.code == 11000 {
-                        return Err(AlertError::AlertExists);
-                    } else {
-                        return Err(AlertError::InsertAlertError(e));
-                    }
-                } else {
-                    return Err(AlertError::InsertAlertError(e));
-                }
-            }
-        }
+        self.alert_collection
+            .insert_one(alert_doc)
+            .await
+            .map_err(|e| match *e.kind {
+                mongodb::error::ErrorKind::Write(mongodb::error::WriteFailure::WriteError(
+                    write_error,
+                )) if write_error.code == 11000 => AlertError::AlertExists,
+                _ => AlertError::InsertAlertError(e),
+            })?;
 
         trace!("Formatting & Inserting alert: {:?}", start.elapsed());
 
@@ -698,9 +667,9 @@ impl AlertWorker for LsstAlertWorker {
 
         let cutout_doc = doc! {
             "_id": &candid,
-            "cutoutScience": cutout2bsonbinary(alert.cutout_science.unwrap()),
-            "cutoutTemplate": cutout2bsonbinary(alert.cutout_template.unwrap()),
-            "cutoutDifference": cutout2bsonbinary(alert.cutout_difference.unwrap()),
+            "cutoutScience": cutout2bsonbinary(alert.cutout_science.ok_or(AlertError::MissingCutout)?),
+            "cutoutTemplate": cutout2bsonbinary(alert.cutout_template.ok_or(AlertError::MissingCutout)?),
+            "cutoutDifference": cutout2bsonbinary(alert.cutout_difference.ok_or(AlertError::MissingCutout)?),
         };
 
         self.alert_cutout_collection

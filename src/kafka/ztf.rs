@@ -24,7 +24,7 @@ impl AlertConsumer for ZtfAlertConsumer {
         output_queue: Option<&str>,
         group_id: Option<&str>,
         server: Option<&str>,
-    ) -> ZtfAlertConsumer {
+    ) -> Self {
         if 15 % n_threads != 0 {
             panic!("Number of threads should be a factor of 15");
         }

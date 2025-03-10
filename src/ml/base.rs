@@ -11,24 +11,34 @@ use std::{collections::HashMap, num::NonZero, thread};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
+#[derive(thiserror::Error, Debug)]
+pub enum MLWorkerError {
+    #[error("failed to connect to database")]
+    ConnectMongoError(#[from] mongodb::error::Error),
+    #[error("failed to connect to redis")]
+    ConnectRedisError(#[from] redis::RedisError),
+    #[error("failed to read config")]
+    ReadConfigError(#[from] conf::BoomConfigError),
+}
+
 // fake ml worker which for now does not run any models
 #[tokio::main]
 pub async fn run_ml_worker(
     id: String,
     mut receiver: mpsc::Receiver<WorkerCmd>,
-    stream_name: String,
-    config_path: String,
-) {
-    let catalog: String = stream_name.clone();
+    stream_name: &str,
+    config_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let catalog: String = stream_name.to_string();
     let queue = format!("{}_alerts_classifier_queue", catalog);
 
     let config_file = conf::load_config(&config_path).unwrap();
-    let db = conf::build_db(&config_file).await;
+    let db = conf::build_db(&config_file).await?;
     let client_redis = redis::Client::open("redis://localhost:6379".to_string()).unwrap();
     let mut con = client_redis
         .get_multiplexed_async_connection()
         .await
-        .unwrap();
+        .map_err(MLWorkerError::ConnectRedisError)?;
 
     let mut alert_counter = 0;
     let command_interval = get_check_command_interval(config_file, &stream_name);
@@ -41,7 +51,7 @@ pub async fn run_ml_worker(
                 match command {
                     WorkerCmd::TERM => {
                         warn!("alert worker {} received termination command", id);
-                        return;
+                        return Ok(());
                     }
                 }
             }
@@ -142,7 +152,7 @@ pub async fn run_ml_worker(
                 match command {
                     WorkerCmd::TERM => {
                         warn!("alert worker {} received termination command", id);
-                        return;
+                        return Ok(());
                     }
                 }
             }
@@ -193,8 +203,7 @@ pub async fn run_ml_worker(
             let filter_queue =
                 format!("{}_alerts_programid{}_filter_queue", stream_name, programid);
             let nb_candids = &candids.len();
-            let _: usize = con
-                .lpush::<&str, Vec<i64>, usize>(filter_queue.as_str(), candids)
+            con.lpush::<&str, Vec<i64>, usize>(filter_queue.as_str(), candids)
                 .await
                 .unwrap();
             info!(

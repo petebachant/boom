@@ -24,7 +24,7 @@ impl AlertConsumer for LsstAlertConsumer {
         output_queue: Option<&str>,
         group_id: Option<&str>,
         server_url: Option<&str>,
-    ) -> LsstAlertConsumer {
+    ) -> Self {
         // 45 should be divisible by n_threads
         if 45 % n_threads != 0 {
             panic!("Number of threads should be a factor of 45");

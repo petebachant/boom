@@ -10,8 +10,8 @@ pub async fn drop_alert_collections(
     alert_cutout_collection_name: &str,
     alert_aux_collection_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
+    let config_file = conf::load_config("tests/config.test.yaml")?;
+    let db = conf::build_db(&config_file).await?;
     db.collection::<mongodb::bson::Document>(alert_collection_name)
         .drop()
         .await?;
@@ -25,7 +25,7 @@ pub async fn drop_alert_collections(
 }
 
 // insert a test filter with id -1 into the database
-pub async fn insert_test_filter() {
+pub async fn insert_test_filter() -> Result<(), Box<dyn std::error::Error>> {
     let filter_obj: mongodb::bson::Document = doc! {
       "_id": mongodb::bson::oid::ObjectId::new(),
       "group_id": 41,
@@ -55,8 +55,8 @@ pub async fn insert_test_filter() {
       }
     };
 
-    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
+    let config_file = conf::load_config("tests/config.test.yaml")?;
+    let db = conf::build_db(&config_file).await?;
     let x = db
         .collection::<mongodb::bson::Document>("filters")
         .insert_one(filter_obj)
@@ -67,16 +67,20 @@ pub async fn insert_test_filter() {
         }
         _ => {}
     }
+
+    Ok(())
 }
 
 // remove test filter with id -1 from the database
-pub async fn remove_test_filter() {
-    let config_file = conf::load_config("tests/config.test.yaml").unwrap();
-    let db = conf::build_db(&config_file).await;
+pub async fn remove_test_filter() -> Result<(), Box<dyn std::error::Error>> {
+    let config_file = conf::load_config("tests/config.test.yaml")?;
+    let db = conf::build_db(&config_file).await?;
     let _ = db
         .collection::<mongodb::bson::Document>("filters")
         .delete_one(doc! {"filter_id": -1})
         .await;
+
+    Ok(())
 }
 
 pub async fn empty_processed_alerts_queue(

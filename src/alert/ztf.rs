@@ -1,5 +1,5 @@
 use crate::{
-    alert::base::{AlertError, AlertWorker},
+    alert::base::{AlertError, AlertWorker, AlertWorkerError},
     conf,
     utils::{
         db::{cutout2bsonbinary, get_coordinates, mongify},
@@ -303,37 +303,29 @@ impl ZtfAlertWorker {
         self: &mut Self,
         avro_bytes: &[u8],
     ) -> Result<ZtfAlert, AlertError> {
-        println!("got to the alert_from_avro_bytes function");
         let reader = Reader::new(&avro_bytes[..]).map_err(AlertError::DecodeError)?;
 
-        println!("got past the reader");
-
-        // TODO: error handling for when there is no next value
-        let value = reader.map(|x| x.unwrap()).next().unwrap();
-
-        println!("got past the value");
+        let value = reader
+            .map(|x| x.map_err(AlertError::AvroReadError))
+            .next()
+            .ok_or(AlertError::EmptyAlertError)??;
 
         let alert: ZtfAlert = from_value::<ZtfAlert>(&value).map_err(AlertError::DecodeError)?;
 
-        println!("got past the alert");
         Ok(alert)
     }
 }
 
 #[async_trait::async_trait]
 impl AlertWorker for ZtfAlertWorker {
-    async fn new(config_path: &str) -> Result<ZtfAlertWorker, Box<dyn std::error::Error>> {
+    async fn new(config_path: &str) -> Result<ZtfAlertWorker, AlertWorkerError> {
         let stream_name = "ZTF".to_string();
 
-        let config_file = conf::load_config(&config_path).unwrap();
+        let config_file = conf::load_config(&config_path)?;
 
-        let xmatch_configs = conf::build_xmatch_configs(&config_file, &stream_name);
+        let xmatch_configs = conf::build_xmatch_configs(&config_file, &stream_name)?;
 
-        let db: mongodb::Database = conf::build_db(&config_file).await;
-        if let Err(e) = db.list_collection_names().await {
-            // error!("Error connecting to the database: {}", e);
-            return Err(Box::new(e));
-        }
+        let db: mongodb::Database = conf::build_db(&config_file).await?;
 
         let alert_collection = db.collection(&format!("{}_alerts", stream_name));
         let alert_aux_collection = db.collection(&format!("{}_alerts_aux", stream_name));
@@ -391,7 +383,12 @@ impl AlertWorker for ZtfAlertWorker {
         self.alert_collection
             .insert_one(alert_doc)
             .await
-            .map_err(AlertError::InsertAlertError)?;
+            .map_err(|e| match *e.kind {
+                mongodb::error::ErrorKind::Write(mongodb::error::WriteFailure::WriteError(
+                    write_error,
+                )) if write_error.code == 11000 => AlertError::AlertExists,
+                _ => AlertError::InsertAlertError(e),
+            })?;
 
         trace!("Formatting & Inserting alert: {:?}", start.elapsed());
 
@@ -399,9 +396,9 @@ impl AlertWorker for ZtfAlertWorker {
 
         let cutout_doc = doc! {
             "_id": &candid,
-            "cutoutScience": cutout2bsonbinary(alert.cutout_science.unwrap()),
-            "cutoutTemplate": cutout2bsonbinary(alert.cutout_template.unwrap()),
-            "cutoutDifference": cutout2bsonbinary(alert.cutout_difference.unwrap()),
+            "cutoutScience": cutout2bsonbinary(alert.cutout_science.ok_or(AlertError::MissingCutout)?),
+            "cutoutTemplate": cutout2bsonbinary(alert.cutout_template.ok_or(AlertError::MissingCutout)?),
+            "cutoutDifference": cutout2bsonbinary(alert.cutout_difference.ok_or(AlertError::MissingCutout)?),
         };
 
         self.alert_cutout_collection
