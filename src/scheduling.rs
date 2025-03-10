@@ -1,8 +1,12 @@
 use crate::{
-    alert_worker, fake_ml_worker, filter_worker,
-    worker_util::{WorkerCmd, WorkerType},
+    alert::{run_alert_worker, LsstAlertWorker, ZtfAlertWorker},
+    filter::{run_filter_worker, LsstFilterWorker, ZtfFilterWorker},
+    ml::run_ml_worker,
+    utils::worker::{WorkerCmd, WorkerType},
 };
-use std::{sync::mpsc, thread};
+use std::thread;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::SendError;
 use tracing::{error, info, warn};
 
 // Thread pool
@@ -44,10 +48,13 @@ impl ThreadPool {
     }
 
     /// Send a termination signal to each worker thread.
-    fn terminate(&self) {
+    async fn terminate(&self) {
         for worker in &self.workers {
-            info!("sending termination signal to worker {}", &worker.id);
-            if let Err(error) = worker.terminate() {
+            info!(
+                "sending termination signal to worker {} (type: {})",
+                &worker.id, &self.worker_type
+            );
+            if let Err(error) = worker.terminate().await {
                 warn!(
                     error = %error,
                     "failed to send termination signal to worker {}",
@@ -87,7 +94,7 @@ impl ThreadPool {
 // Shut down all workers from the thread pool and drop the threadpool
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        self.terminate();
+        futures::executor::block_on(self.terminate());
         self.join();
     }
 }
@@ -118,21 +125,52 @@ impl Worker {
         config_path: String,
     ) -> Worker {
         let id_copy = id.clone();
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel(1);
         let thread = match worker_type {
             // TODO: Spawn a new worker thread when one dies? (A supervisor or something like that?)
             WorkerType::Alert => thread::spawn(move || {
-                if let Err(e) =
-                    alert_worker::alert_worker(&id, stream_name.clone(), &config_path, receiver)
-                {
-                    error!(id, stream_name, config_path, error = %e, "alert worker failed")
+                let run = match stream_name.as_str() {
+                    "ZTF" => run_alert_worker::<ZtfAlertWorker>,
+                    "LSST" => run_alert_worker::<LsstAlertWorker>,
+                    _ => {
+                        error!("Unknown stream name: {}", stream_name);
+                        return;
+                    }
+                };
+                if let Err(error) = run(id, receiver, &config_path) {
+                    error!(error = %error, "failed to run alert worker");
                 }
             }),
-            WorkerType::Filter => thread::spawn(|| {
-                let _ = filter_worker::filter_worker(id, receiver, stream_name, config_path);
+            WorkerType::Filter => thread::spawn(move || {
+                let run = match stream_name.as_str() {
+                    "ZTF" => run_filter_worker::<ZtfFilterWorker>,
+                    "LSST" => run_filter_worker::<LsstFilterWorker>,
+                    _ => {
+                        error!("Unknown stream name: {}", stream_name);
+                        return;
+                    }
+                };
+                if let Err(error) = run(id, receiver, &config_path) {
+                    error!(error = %error, "failed to run filter worker");
+                }
             }),
-            WorkerType::ML => thread::spawn(|| {
-                fake_ml_worker::fake_ml_worker(id, receiver, stream_name, config_path);
+            WorkerType::ML => thread::spawn(move || {
+                let run = match stream_name.as_str() {
+                    "ZTF" => run_ml_worker,
+                    // we don't have an ML worker for LSST yet
+                    "LSST" => {
+                        error!("LSST ML worker not implemented");
+                        return;
+                    }
+                    _ => {
+                        error!("Unknown stream name: {}", stream_name);
+                        return;
+                    }
+                };
+
+                if let Err(error) = run(id, receiver, &stream_name, &config_path) {
+                    error!(error = %error, "failed to run ml worker");
+                }
             }),
         };
 
@@ -144,7 +182,7 @@ impl Worker {
     }
 
     /// Send a termination signal to the worker's thread.
-    fn terminate(&self) -> Result<(), mpsc::SendError<WorkerCmd>> {
-        self.sender.send(WorkerCmd::TERM)
+    async fn terminate(&self) -> Result<(), SendError<WorkerCmd>> {
+        self.sender.send(WorkerCmd::TERM).await
     }
 }
