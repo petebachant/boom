@@ -18,7 +18,6 @@ async fn test_build_filter() {
     testing::insert_test_filter().await.unwrap();
     let filter_result = ZtfFilter::build(-1, &filter_collection).await;
     testing::remove_test_filter().await.unwrap();
-    assert!(filter_result.is_ok());
     let filter = filter_result.unwrap();
     let pipeline: Vec<Document> = vec![
         doc! { "$match": {} },
@@ -33,7 +32,7 @@ async fn test_build_filter() {
                         "as": "x",
                         "cond": {
                             "$and": [
-                                { "$in": ["$$x.programid", [1_i64]] },
+                                { "$in": ["$$x.programid", [1_i32]] },
                                 { "$lt": [{ "$subtract": ["$candidate.jd", "$$x.jd"] }, 365] },
                                 { "$lte": ["$$x.jd", "$candidate.jd"]}
                             ]

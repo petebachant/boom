@@ -249,7 +249,7 @@ impl FilterWorker for LsstFilterWorker {
                     .get(&filter.id)
                     .ok_or(FilterWorkerError::GetQueueNameError)?;
 
-                con.lpush(queue_name, out_documents)
+                con.lpush::<_, _, ()>(queue_name, out_documents)
                     .await
                     .map_err(FilterWorkerError::PushFilterResultsError)?;
             }

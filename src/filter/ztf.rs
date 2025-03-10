@@ -10,10 +10,11 @@ use crate::filter::{
 };
 use crate::utils::worker::WorkerCmd;
 
+#[derive(Debug)]
 pub struct ZtfFilter {
     pub id: i32,
     pub pipeline: Vec<Document>,
-    pub permissions: Vec<i64>,
+    pub permissions: Vec<i32>,
 }
 
 #[async_trait::async_trait]
@@ -34,9 +35,9 @@ impl Filter for ZtfFilter {
                 };
                 permissions_array
                     .iter()
-                    .map(|x| x.as_i64().ok_or(FilterError::InvalidFilterPermissions))
+                    .map(|x| x.as_i32().ok_or(FilterError::InvalidFilterPermissions))
                     .filter_map(Result::ok)
-                    .collect::<Vec<i64>>()
+                    .collect::<Vec<i32>>()
             }
             None => vec![],
         };
