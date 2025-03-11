@@ -229,6 +229,7 @@ pub struct DiaSource {
     // these fields are computed later, from the psf_flux and science_flux (the latter is missing in the current LSST schema)
     pub magpsf: Option<f32>,
     pub sigmapsf: Option<f32>,
+    pub diffmaglim: Option<f32>,
     pub isdiffpos: Option<bool>,
     // pub magdc: Option<f32>,
     // pub sigmadc: Option<f32>,
@@ -445,7 +446,9 @@ pub struct DiaForcedSource {
     // these fields are computed later, from the psf_flux
     pub magpsf: Option<f32>,
     pub sigmapsf: Option<f32>,
+    pub diffmaglim: Option<f32>,
     pub isdiffpos: Option<bool>,
+    pub snr: Option<f32>,
 }
 
 /// Rubin Avro alert schema v7.3
@@ -474,20 +477,27 @@ pub struct LsstAlert {
     pub cutout_template: Option<Vec<u8>>,
 }
 
-fn flux2mag(flux: f32, flux_err: f32) -> (f32, f32) {
-    let mag = -2.5 * (flux * 1e-9).log10() + 8.9;
+fn flux2mag(flux: f32, flux_err: f32) -> (f32, f32, f32) {
+    // convert from nJy to Jy
+    let flux = flux.abs() * 1e-9;
+    let flux_err = flux_err * 1e-9;
+
+    // convert from Jy to AB mag
+    let mag = -2.5 * (flux).log10() + 8.9;
     let sigma = 1.0857 * (flux_err / flux);
-    (mag, sigma)
+    let diffmaglim = -2.5 * (5.0 * flux_err).log10() + 8.9;
+    (mag, sigma, diffmaglim)
 }
 
 impl DiaSource {
     pub fn add_mag_data(&mut self) -> Result<(), AlertError> {
-        let (magpsf, sigmapsf) = flux2mag(
+        let (magpsf, sigmapsf, diffmaglim) = flux2mag(
             self.psf_flux.ok_or(AlertError::MissingFluxPSF)?.abs(),
             self.psf_flux_err.ok_or(AlertError::MissingFluxPSF)?,
         );
         self.magpsf = Some(magpsf);
         self.sigmapsf = Some(sigmapsf);
+        self.diffmaglim = Some(diffmaglim);
         self.isdiffpos = Some(self.psf_flux.unwrap() > 0.0);
         Ok(())
     }
@@ -495,13 +505,15 @@ impl DiaSource {
 
 impl DiaForcedSource {
     pub fn add_mag_data(&mut self) -> Result<(), AlertError> {
-        let (magpsf, sigmapsf) = flux2mag(
+        let (magpsf, sigmapsf, diffmaglim) = flux2mag(
             self.psf_flux.ok_or(AlertError::MissingFluxPSF)?.abs(),
             self.psf_flux_err.ok_or(AlertError::MissingFluxPSF)?,
         );
         self.magpsf = Some(magpsf);
         self.sigmapsf = Some(sigmapsf);
+        self.diffmaglim = Some(diffmaglim);
         self.isdiffpos = Some(self.psf_flux.unwrap() > 0.0);
+        self.snr = Some(self.psf_flux.unwrap() / self.psf_flux_err.unwrap());
         Ok(())
     }
 }

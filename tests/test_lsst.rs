@@ -22,6 +22,8 @@ async fn test_lsst_alert_from_avro_bytes() {
     assert!((alert.candidate.mjd - 57454.329282).abs() < 1e-6);
     assert!((alert.candidate.magpsf.unwrap() - 23.146893).abs() < 1e-6);
     assert!((alert.candidate.sigmapsf.unwrap() - 0.039096095).abs() < 1e-6);
+    assert!((alert.candidate.diffmaglim.unwrap() - 25.008410).abs() < 1e-6);
+    assert!(alert.candidate.snr.unwrap() - 26.443893 < 1e-6);
     assert_eq!(alert.candidate.isdiffpos.unwrap(), true);
     assert_eq!(alert.candidate.band.unwrap(), "g");
 
@@ -41,6 +43,8 @@ async fn test_lsst_alert_from_avro_bytes() {
     assert!((prv_candidate.mjd - 57454.299200).abs() < 1e-6);
     assert!((prv_candidate.magpsf.unwrap() - 24.763279).abs() < 1e-6);
     assert!((prv_candidate.sigmapsf.unwrap() - 0.32975397).abs() < 1e-6);
+    assert!((prv_candidate.diffmaglim.unwrap() - 24.309652).abs() < 1e-6);
+    assert!(prv_candidate.snr.unwrap() - 34.063416 < 1e-6);
     assert_eq!(prv_candidate.isdiffpos.unwrap(), true);
     assert_eq!(prv_candidate.band.clone().unwrap(), "g");
 
@@ -60,6 +64,8 @@ async fn test_lsst_alert_from_avro_bytes() {
     assert!((fp_hist.mjd - 57454.299200).abs() < 1e-6);
     assert!((fp_hist.magpsf.unwrap() - 24.735056).abs() < 1e-6);
     assert!((fp_hist.sigmapsf.unwrap() - 0.32974288).abs() < 1e-6);
+    assert!((fp_hist.diffmaglim.unwrap() - 24.281467).abs() < 1e-6);
+    assert!((fp_hist.snr.unwrap() - 3.2925656).abs() < 1e-6);
     assert_eq!(fp_hist.isdiffpos.unwrap(), true);
     assert_eq!(fp_hist.band.clone().unwrap(), "g");
     
