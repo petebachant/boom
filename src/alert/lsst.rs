@@ -225,6 +225,13 @@ pub struct DiaSource {
     /// Template injection in the 3x3 region around the centroid.
     #[serde(rename = "pixelFlags_injected_templateCenter")]
     pub pixel_flags_injected_template_center: Option<bool>,
+
+    // these fields are computed later, from the psf_flux and science_flux (the latter is missing in the current LSST schema)
+    pub magpsf: Option<f32>,
+    pub sigmapsf: Option<f32>,
+    pub isdiffpos: Option<bool>,
+    // pub magdc: Option<f32>,
+    // pub sigmadc: Option<f32>,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
@@ -434,6 +441,11 @@ pub struct DiaForcedSource {
     pub mjd: f64,
     /// Filter band this source was observed with.
     pub band: Option<String>,
+
+    // these fields are computed later, from the psf_flux
+    pub magpsf: Option<f32>,
+    pub sigmapsf: Option<f32>,
+    pub isdiffpos: Option<bool>,
 }
 
 /// Rubin Avro alert schema v7.3
@@ -460,6 +472,38 @@ pub struct LsstAlert {
     #[serde(rename = "cutoutTemplate")]
     #[serde(with = "apache_avro::serde_avro_bytes_opt")]
     pub cutout_template: Option<Vec<u8>>,
+}
+
+fn flux2mag(flux: f32, flux_err: f32) -> (f32, f32) {
+    let mag = -2.5 * (flux * 1e-9).log10() + 8.9;
+    let sigma = 1.0857 * (flux_err / flux);
+    (mag, sigma)
+}
+
+impl DiaSource {
+    pub fn add_mag_data(&mut self) -> Result<(), AlertError> {
+        let (magpsf, sigmapsf) = flux2mag(
+            self.psf_flux.ok_or(AlertError::MissingFluxPSF)?.abs(),
+            self.psf_flux_err.ok_or(AlertError::MissingFluxPSF)?,
+        );
+        self.magpsf = Some(magpsf);
+        self.sigmapsf = Some(sigmapsf);
+        self.isdiffpos = Some(self.psf_flux.unwrap() > 0.0);
+        Ok(())
+    }
+}
+
+impl DiaForcedSource {
+    pub fn add_mag_data(&mut self) -> Result<(), AlertError> {
+        let (magpsf, sigmapsf) = flux2mag(
+            self.psf_flux.ok_or(AlertError::MissingFluxPSF)?.abs(),
+            self.psf_flux_err.ok_or(AlertError::MissingFluxPSF)?,
+        );
+        self.magpsf = Some(magpsf);
+        self.sigmapsf = Some(sigmapsf);
+        self.isdiffpos = Some(self.psf_flux.unwrap() > 0.0);
+        Ok(())
+    }
 }
 
 pub struct LsstAlertWorker {
@@ -561,7 +605,7 @@ impl LsstAlertWorker {
         Ok(self.cache.get(&key).unwrap())
     }
 
-    async fn alert_from_avro_bytes(
+    pub async fn alert_from_avro_bytes(
         self: &mut Self,
         avro_bytes: &[u8],
     ) -> Result<LsstAlert, AlertError> {
@@ -640,6 +684,8 @@ impl AlertWorker for LsstAlertWorker {
         let ra = alert.candidate.ra;
         let dec = alert.candidate.dec;
 
+        alert.candidate.add_mag_data()?;
+
         let candidate_doc = mongify(&alert.candidate);
 
         let alert_doc = doc! {
@@ -695,15 +741,25 @@ impl AlertWorker for LsstAlertWorker {
         let mut prv_candidates_doc = prv_candidates
             .unwrap_or(vec![])
             .into_iter()
-            .map(|x| mongify(&x))
-            .collect::<Vec<_>>();
+            .map(|mut x| {
+                if let Err(e) = x.add_mag_data() {
+                    return Err(e);
+                }
+                Ok(mongify(&x))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         prv_candidates_doc.push(candidate_doc);
 
         let fp_hist_doc = fp_hist
             .unwrap_or(vec![])
             .into_iter()
-            .map(|x| mongify(&x))
-            .collect::<Vec<_>>();
+            .map(|mut x| {
+                if let Err(e) = x.add_mag_data() {
+                    return Err(e);
+                }
+                Ok(mongify(&x))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         trace!("Formatting prv_candidates & fp_hist: {:?}", start.elapsed());
 
