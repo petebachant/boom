@@ -8,7 +8,10 @@ async fn test_lsst_alert_from_avro_bytes() {
 
     let file_name = "tests/data/alerts/lsst/0.avro";
     let bytes_content = std::fs::read(file_name).unwrap();
-    let mut alert = alert_worker.alert_from_avro_bytes(&bytes_content).await.unwrap();
+    let mut alert = alert_worker
+        .alert_from_avro_bytes(&bytes_content)
+        .await
+        .unwrap();
 
     assert_eq!(alert.candid, 25409136044802067);
     assert_eq!(alert.candidate.object_id.unwrap(), 25401295582003262);
@@ -73,5 +76,4 @@ async fn test_lsst_alert_from_avro_bytes() {
     assert!(alert.prv_nondetections.is_none());
 
     // TODO: find an LSST avro packet that has non detections so we can test it
-    
 }

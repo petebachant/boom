@@ -42,14 +42,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match survey.as_str() {
         "ZTF" => {
-            let consumer = ZtfAlertConsumer::new(processes, Some(max_in_queue), None, None, None, None);
+            let consumer =
+                ZtfAlertConsumer::new(processes, Some(max_in_queue), None, None, None, None);
             if clear {
                 let _ = consumer.clear_output_queue();
             }
             consumer.consume(timestamp).await?;
         }
         "LSST" => {
-            let consumer = LsstAlertConsumer::new(processes, Some(max_in_queue), None, None, None, None);
+            let consumer =
+                LsstAlertConsumer::new(processes, Some(max_in_queue), None, None, None, None);
             if clear {
                 let _ = consumer.clear_output_queue();
             }
