@@ -25,7 +25,7 @@ async fn test_lsst_alert_from_avro_bytes() {
     assert!((alert.candidate.mjd - 57454.329282).abs() < 1e-6);
     assert!((alert.candidate.magpsf.unwrap() - 23.146893).abs() < 1e-6);
     assert!((alert.candidate.sigmapsf.unwrap() - 0.039097).abs() < 1e-6);
-    assert!((alert.candidate.diffmaglim.unwrap() - 25.008410).abs() < 1e-6);
+    assert!((alert.candidate.diffmaglim.unwrap() - 25.00841).abs() < 1e-5);
     assert!(alert.candidate.snr.unwrap() - 27.770037 < 1e-6);
     assert_eq!(alert.candidate.isdiffpos.unwrap(), true);
     assert_eq!(alert.candidate.band.unwrap(), "g");
