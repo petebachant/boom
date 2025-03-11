@@ -484,8 +484,9 @@ fn flux2mag(flux: f32, flux_err: f32) -> (f32, f32, f32) {
 
     // convert from Jy to AB mag
     let mag = -2.5 * (flux).log10() + 8.9;
-    let sigma = 1.0857 * (flux_err / flux);
+    let sigma = 1.0857362047581294 * (flux_err / flux);
     let diffmaglim = -2.5 * (5.0 * flux_err).log10() + 8.9;
+
     (mag, sigma, diffmaglim)
 }
 
@@ -499,6 +500,7 @@ impl DiaSource {
         self.sigmapsf = Some(sigmapsf);
         self.diffmaglim = Some(diffmaglim);
         self.isdiffpos = Some(self.psf_flux.unwrap() > 0.0);
+        self.snr = Some(self.psf_flux.unwrap() / self.psf_flux_err.unwrap());
         Ok(())
     }
 }
