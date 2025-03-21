@@ -36,9 +36,9 @@ pub struct DiaSource {
     #[serde(rename = "parentDiaSourceId")]
     pub parent_dia_source_id: Option<i64>,
     /// Effective mid-visit time for this diaSource, expressed as Modified Julian Date, International Atomic Time.
-    #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
+    #[serde(rename(deserialize = "midpointMjdTai", serialize = "jd"))]
     #[serde(deserialize_with = "deserialize_mjd")]
-    pub mjd: f64,
+    pub jd: f64,
     /// Right ascension coordinate of the center of this diaSource.
     pub ra: f64,
     /// Uncertainty of ra.
@@ -63,8 +63,6 @@ pub struct DiaSource {
     /// Aperture did not fit within measurement image.
     #[serde(rename = "apFlux_flag_apertureTruncated")]
     pub ap_flux_flag_aperture_truncated: Option<bool>,
-    /// The signal-to-noise ratio at which this source was detected in the difference image.
-    pub snr: Option<f32>,
     /// Flux for Point Source model. Note this actually measures the flux difference between the template and the visit image.
     #[serde(rename = "psfFlux")]
     pub psf_flux: Option<f32>,
@@ -236,24 +234,36 @@ pub struct Candidate {
     pub diffmaglim: f32,
     pub isdiffpos: bool,
     pub snr: f32,
+    pub magap: f32,
+    pub sigmagap: f32,
 }
 
 impl TryFrom<DiaSource> for Candidate {
     type Error = AlertError;
     fn try_from(dia_source: DiaSource) -> Result<Self, Self::Error> {
-        let flux = dia_source.psf_flux.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
-        let flux_err = dia_source.psf_flux_err.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
+        let psf_flux = dia_source.psf_flux.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
+        let psf_flux_err = dia_source.psf_flux_err.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
 
-        let (magpsf, sigmapsf) = flux2mag(flux.abs(), flux_err);
-        let diffmaglim = fluxerr2diffmaglim(flux_err);
+        let ap_flux = dia_source.ap_flux.ok_or(AlertError::MissingFluxAperture)? * 1e-9;
+        let ap_flux_err = dia_source
+            .ap_flux_err
+            .ok_or(AlertError::MissingFluxAperture)?
+            * 1e-9;
+
+        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err);
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err);
+
+        let (magap, sigmagap) = flux2mag(ap_flux.abs(), ap_flux_err);
 
         Ok(Candidate {
             dia_source,
             magpsf,
             sigmapsf,
             diffmaglim,
-            isdiffpos: flux > 0.0,
-            snr: flux.abs() / flux_err,
+            isdiffpos: psf_flux > 0.0,
+            snr: psf_flux.abs() / psf_flux_err,
+            magap,
+            sigmagap,
         })
     }
 }
@@ -432,9 +442,9 @@ pub struct DiaObject {
 pub struct DiaNondetectionLimit {
     #[serde(rename = "ccdVisitId")]
     pub ccd_visit_id: i64,
-    #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
+    #[serde(rename(deserialize = "midpointMjdTai", serialize = "jd"))]
     #[serde(deserialize_with = "deserialize_mjd")]
-    pub mjd: f64,
+    pub jd: f64,
     pub band: String,
     #[serde(rename = "diaNoise")]
     pub dia_noise: f32,
@@ -482,9 +492,9 @@ pub struct DiaForcedSource {
     #[serde(rename = "psfFluxErr")]
     pub psf_flux_err: Option<f32>,
     /// Effective mid-visit time for this diaForcedSource, expressed as Modified Julian Date, International Atomic Time.
-    #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
+    #[serde(rename(deserialize = "midpointMjdTai", serialize = "jd"))]
     #[serde(deserialize_with = "deserialize_mjd")]
-    pub mjd: f64,
+    pub jd: f64,
     /// Filter band this source was observed with.
     pub band: Option<String>,
 }
@@ -503,25 +513,25 @@ pub struct ForcedPhot {
 impl TryFrom<DiaForcedSource> for ForcedPhot {
     type Error = AlertError;
     fn try_from(dia_forced_source: DiaForcedSource) -> Result<Self, Self::Error> {
-        let flux = dia_forced_source
+        let psf_flux = dia_forced_source
             .psf_flux
             .ok_or(AlertError::MissingFluxPSF)?
             * 1e-9;
-        let flux_err = dia_forced_source
+        let psf_flux_err = dia_forced_source
             .psf_flux_err
             .ok_or(AlertError::MissingFluxPSF)?
             * 1e-9;
 
-        let (magpsf, sigmapsf) = flux2mag(flux.abs(), flux_err);
-        let diffmaglim = fluxerr2diffmaglim(flux_err);
+        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err);
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err);
 
         Ok(ForcedPhot {
             dia_forced_source,
             magpsf: Some(magpsf),
             sigmapsf: Some(sigmapsf),
             diffmaglim: Some(diffmaglim),
-            isdiffpos: Some(flux > 0.0),
-            snr: Some(flux.abs() / flux_err),
+            isdiffpos: Some(psf_flux > 0.0),
+            snr: Some(psf_flux.abs() / psf_flux_err),
         })
     }
 }

@@ -38,8 +38,6 @@ pub struct PrvCandidate {
     pub nid: Option<i32>,
     pub rcid: Option<i32>,
     pub field: Option<i32>,
-    pub xpos: Option<f32>,
-    pub ypos: Option<f32>,
     pub ra: Option<f64>,
     pub dec: Option<f64>,
     pub magpsf: Option<f32>,

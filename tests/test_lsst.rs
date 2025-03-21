@@ -24,7 +24,7 @@ async fn test_lsst_alert_from_avro_bytes() {
 
     // add mag data to the candidate
 
-    assert!((alert.candidate.dia_source.mjd - 57454.329282).abs() < 1e-6);
+    assert!((alert.candidate.dia_source.jd - 2457454.829282).abs() < 1e-6);
     assert!((alert.candidate.magpsf - 23.146893).abs() < 1e-6);
     assert!((alert.candidate.sigmapsf - 0.039097).abs() < 1e-6);
     assert!((alert.candidate.diffmaglim - 25.00841).abs() < 1e-5);
@@ -40,7 +40,7 @@ async fn test_lsst_alert_from_avro_bytes() {
     // validate the first prv_candidate
     let prv_candidate = prv_candidates.get(0).unwrap();
 
-    assert!((prv_candidate.dia_source.mjd - 57454.299200).abs() < 1e-6);
+    assert!((prv_candidate.dia_source.jd - 2457454.7992).abs() < 1e-6);
     assert!((prv_candidate.magpsf - 24.763279).abs() < 1e-6);
     assert!((prv_candidate.sigmapsf - 0.329765).abs() < 1e-6);
     assert!((prv_candidate.diffmaglim - 24.309652).abs() < 1e-6);
@@ -56,7 +56,7 @@ async fn test_lsst_alert_from_avro_bytes() {
     // validate the first fp_hist
     let fp_hist = fp_hists.get(0).unwrap();
 
-    assert!((fp_hist.dia_forced_source.mjd - 57454.299200).abs() < 1e-6);
+    assert!((fp_hist.dia_forced_source.jd - 2457454.7992).abs() < 1e-6);
     assert!((fp_hist.magpsf.unwrap() - 24.735056).abs() < 1e-6);
     assert!((fp_hist.sigmapsf.unwrap() - 0.329754).abs() < 1e-6);
     assert!((fp_hist.diffmaglim.unwrap() - 24.281467).abs() < 1e-6);
