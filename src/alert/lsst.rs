@@ -37,6 +37,7 @@ pub struct DiaSource {
     pub parent_dia_source_id: Option<i64>,
     /// Effective mid-visit time for this diaSource, expressed as Modified Julian Date, International Atomic Time.
     #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
+    #[serde(deserialize_with = "deserialize_mjd")]
     pub mjd: f64,
     /// Right ascension coordinate of the center of this diaSource.
     pub ra: f64,
@@ -274,6 +275,7 @@ pub struct DiaObject {
     pub dec_err: Option<f32>,
     /// Time at which the object was at a position ra/dec, expressed as Modified Julian Date, International Atomic Time.
     #[serde(rename = "radecMjdTai")]
+    #[serde(deserialize_with = "deserialize_mjd_option")]
     pub radec_mjd_tai: Option<f64>,
     /// Proper motion in right ascension.
     #[serde(rename = "pmRa")]
@@ -431,6 +433,7 @@ pub struct DiaNondetectionLimit {
     #[serde(rename = "ccdVisitId")]
     pub ccd_visit_id: i64,
     #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
+    #[serde(deserialize_with = "deserialize_mjd")]
     pub mjd: f64,
     pub band: String,
     #[serde(rename = "diaNoise")]
@@ -480,6 +483,7 @@ pub struct DiaForcedSource {
     pub psf_flux_err: Option<f32>,
     /// Effective mid-visit time for this diaForcedSource, expressed as Modified Julian Date, International Atomic Time.
     #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
+    #[serde(deserialize_with = "deserialize_mjd")]
     pub mjd: f64,
     /// Filter band this source was observed with.
     pub band: Option<String>,
@@ -603,6 +607,25 @@ where
         .collect::<Result<Vec<NonDetection>, AlertError>>()
         .map_err(serde::de::Error::custom)?;
     Ok(Some(nondetections))
+}
+
+fn deserialize_mjd<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let mjd = <f64 as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(mjd + 2400000.5)
+}
+
+fn deserialize_mjd_option<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let mjd = <Option<f64> as serde::Deserialize>::deserialize(deserializer)?;
+    match mjd {
+        Some(mjd) => Ok(Some(mjd + 2400000.5)),
+        None => Ok(None),
+    }
 }
 
 pub struct LsstAlertWorker {
