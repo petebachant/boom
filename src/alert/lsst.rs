@@ -143,12 +143,6 @@ pub struct DiaSource {
     /// Forced PSF flux not enough non-rejected pixels in data to attempt the fit.
     #[serde(rename = "forced_PsfFlux_flag_noGoodPixels")]
     pub forced_psf_flux_flag_no_good_pixels: Option<bool>,
-    /// Calibrated flux for Point Source model centered on radec but measured on the difference of snaps comprising this visit.
-    #[serde(rename = "snapDiffFlux")]
-    pub snap_diff_flux: Option<f32>,
-    /// Estimated uncertainty of snapDiffFlux.
-    #[serde(rename = "snapDiffFluxErr")]
-    pub snap_diff_flux_err: Option<f32>,
     /// Estimated sky background at the position (centroid) of the object.
     #[serde(rename = "fpBkgd")]
     pub fp_bkgd: Option<f32>,
@@ -172,57 +166,6 @@ pub struct DiaSource {
     /// General pixel flags failure; set if anything went wrong when setting pixels flags from this footprint's mask. This implies that some pixelFlags for this source may be incorrectly set to False.
     #[serde(rename = "pixelFlags")]
     pub pixel_flags: Option<bool>,
-    /// Bad pixel in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_bad")]
-    pub pixel_flags_bad: Option<bool>,
-    /// Cosmic ray in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_cr")]
-    pub pixel_flags_cr: Option<bool>,
-    /// Cosmic ray in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_crCenter")]
-    pub pixel_flags_cr_center: Option<bool>,
-    /// Some of the source footprint is outside usable exposure region (masked EDGE or NO_DATA, or centroid off image).
-    #[serde(rename = "pixelFlags_edge")]
-    pub pixel_flags_edge: Option<bool>,
-    /// Interpolated pixel in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_interpolated")]
-    pub pixel_flags_interpolated: Option<bool>,
-    /// Interpolated pixel in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_interpolatedCenter")]
-    pub pixel_flags_interpolated_center: Option<bool>,
-    /// DiaSource center is off image.
-    #[serde(rename = "pixelFlags_offimage")]
-    pub pixel_flags_offimage: Option<bool>,
-    /// Saturated pixel in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_saturated")]
-    pub pixel_flags_saturated: Option<bool>,
-    /// Saturated pixel in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_saturatedCenter")]
-    pub pixel_flags_saturated_center: Option<bool>,
-    /// DiaSource's footprint includes suspect pixels.
-    #[serde(rename = "pixelFlags_suspect")]
-    pub pixel_flags_suspect: Option<bool>,
-    /// Suspect pixel in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_suspectCenter")]
-    pub pixel_flags_suspect_center: Option<bool>,
-    /// Streak in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_streak")]
-    pub pixel_flags_streak: Option<bool>,
-    /// Streak in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_streakCenter")]
-    pub pixel_flags_streak_center: Option<bool>,
-    /// Injection in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_injected")]
-    pub pixel_flags_injected: Option<bool>,
-    /// Injection in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_injectedCenter")]
-    pub pixel_flags_injected_center: Option<bool>,
-    /// Template injection in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_injected_template")]
-    pub pixel_flags_injected_template: Option<bool>,
-    /// Template injection in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_injected_templateCenter")]
-    pub pixel_flags_injected_template_center: Option<bool>,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
@@ -284,9 +227,9 @@ pub struct DiaObject {
     #[serde(rename = "decErr")]
     pub dec_err: Option<f32>,
     /// Time at which the object was at a position ra/dec, expressed as Modified Julian Date, International Atomic Time.
-    #[serde(rename = "radecMjdTai")]
+    #[serde(rename(deserialize = "radecMjdTai", serialize = "jd"))]
     #[serde(deserialize_with = "deserialize_mjd_option")]
-    pub radec_mjd_tai: Option<f64>,
+    pub jd: Option<f64>,
     /// Proper motion in right ascension.
     #[serde(rename = "pmRa")]
     pub pm_ra: Option<f32>,
@@ -436,6 +379,27 @@ pub struct DiaObject {
     /// Mean of the y band flux errors.
     #[serde(rename = "y_psfFluxErrMean")]
     pub y_psf_flux_err_mean: Option<f32>,
+
+    #[serde(rename = "nearbyObj1")]
+    pub nearby_obj1: Option<i64>,
+    #[serde(rename = "nearbyObj1Dist")]
+    pub nearby_obj1_dist: Option<f32>,
+    #[serde(rename = "nearbyObj1LnP")]
+    pub nearby_obj1_lnp: Option<f32>,
+
+    #[serde(rename = "nearbyObj2")]
+    pub nearby_obj2: Option<i64>,
+    #[serde(rename = "nearbyObj2Dist")]
+    pub nearby_obj2_dist: Option<f32>,
+    #[serde(rename = "nearbyObj2LnP")]
+    pub nearby_obj2_lnp: Option<f32>,
+
+    #[serde(rename = "nearbyObj3")]
+    pub nearby_obj3: Option<i64>,
+    #[serde(rename = "nearbyObj3Dist")]
+    pub nearby_obj3_dist: Option<f32>,
+    #[serde(rename = "nearbyObj3LnP")]
+    pub nearby_obj3_lnp: Option<f32>,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
