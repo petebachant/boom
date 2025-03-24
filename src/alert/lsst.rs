@@ -36,8 +36,9 @@ pub struct DiaSource {
     #[serde(rename = "parentDiaSourceId")]
     pub parent_dia_source_id: Option<i64>,
     /// Effective mid-visit time for this diaSource, expressed as Modified Julian Date, International Atomic Time.
-    #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
-    pub mjd: f64,
+    #[serde(rename(deserialize = "midpointMjdTai", serialize = "jd"))]
+    #[serde(deserialize_with = "deserialize_mjd")]
+    pub jd: f64,
     /// Right ascension coordinate of the center of this diaSource.
     pub ra: f64,
     /// Uncertainty of ra.
@@ -62,8 +63,6 @@ pub struct DiaSource {
     /// Aperture did not fit within measurement image.
     #[serde(rename = "apFlux_flag_apertureTruncated")]
     pub ap_flux_flag_aperture_truncated: Option<bool>,
-    /// The signal-to-noise ratio at which this source was detected in the difference image.
-    pub snr: Option<f32>,
     /// Flux for Point Source model. Note this actually measures the flux difference between the template and the visit image.
     #[serde(rename = "psfFlux")]
     pub psf_flux: Option<f32>,
@@ -144,12 +143,6 @@ pub struct DiaSource {
     /// Forced PSF flux not enough non-rejected pixels in data to attempt the fit.
     #[serde(rename = "forced_PsfFlux_flag_noGoodPixels")]
     pub forced_psf_flux_flag_no_good_pixels: Option<bool>,
-    /// Calibrated flux for Point Source model centered on radec but measured on the difference of snaps comprising this visit.
-    #[serde(rename = "snapDiffFlux")]
-    pub snap_diff_flux: Option<f32>,
-    /// Estimated uncertainty of snapDiffFlux.
-    #[serde(rename = "snapDiffFluxErr")]
-    pub snap_diff_flux_err: Option<f32>,
     /// Estimated sky background at the position (centroid) of the object.
     #[serde(rename = "fpBkgd")]
     pub fp_bkgd: Option<f32>,
@@ -173,57 +166,6 @@ pub struct DiaSource {
     /// General pixel flags failure; set if anything went wrong when setting pixels flags from this footprint's mask. This implies that some pixelFlags for this source may be incorrectly set to False.
     #[serde(rename = "pixelFlags")]
     pub pixel_flags: Option<bool>,
-    /// Bad pixel in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_bad")]
-    pub pixel_flags_bad: Option<bool>,
-    /// Cosmic ray in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_cr")]
-    pub pixel_flags_cr: Option<bool>,
-    /// Cosmic ray in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_crCenter")]
-    pub pixel_flags_cr_center: Option<bool>,
-    /// Some of the source footprint is outside usable exposure region (masked EDGE or NO_DATA, or centroid off image).
-    #[serde(rename = "pixelFlags_edge")]
-    pub pixel_flags_edge: Option<bool>,
-    /// Interpolated pixel in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_interpolated")]
-    pub pixel_flags_interpolated: Option<bool>,
-    /// Interpolated pixel in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_interpolatedCenter")]
-    pub pixel_flags_interpolated_center: Option<bool>,
-    /// DiaSource center is off image.
-    #[serde(rename = "pixelFlags_offimage")]
-    pub pixel_flags_offimage: Option<bool>,
-    /// Saturated pixel in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_saturated")]
-    pub pixel_flags_saturated: Option<bool>,
-    /// Saturated pixel in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_saturatedCenter")]
-    pub pixel_flags_saturated_center: Option<bool>,
-    /// DiaSource's footprint includes suspect pixels.
-    #[serde(rename = "pixelFlags_suspect")]
-    pub pixel_flags_suspect: Option<bool>,
-    /// Suspect pixel in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_suspectCenter")]
-    pub pixel_flags_suspect_center: Option<bool>,
-    /// Streak in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_streak")]
-    pub pixel_flags_streak: Option<bool>,
-    /// Streak in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_streakCenter")]
-    pub pixel_flags_streak_center: Option<bool>,
-    /// Injection in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_injected")]
-    pub pixel_flags_injected: Option<bool>,
-    /// Injection in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_injectedCenter")]
-    pub pixel_flags_injected_center: Option<bool>,
-    /// Template injection in the DiaSource footprint.
-    #[serde(rename = "pixelFlags_injected_template")]
-    pub pixel_flags_injected_template: Option<bool>,
-    /// Template injection in the 3x3 region around the centroid.
-    #[serde(rename = "pixelFlags_injected_templateCenter")]
-    pub pixel_flags_injected_template_center: Option<bool>,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
@@ -235,24 +177,36 @@ pub struct Candidate {
     pub diffmaglim: f32,
     pub isdiffpos: bool,
     pub snr: f32,
+    pub magap: f32,
+    pub sigmagap: f32,
 }
 
 impl TryFrom<DiaSource> for Candidate {
     type Error = AlertError;
     fn try_from(dia_source: DiaSource) -> Result<Self, Self::Error> {
-        let flux = dia_source.psf_flux.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
-        let flux_err = dia_source.psf_flux_err.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
+        let psf_flux = dia_source.psf_flux.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
+        let psf_flux_err = dia_source.psf_flux_err.ok_or(AlertError::MissingFluxPSF)? * 1e-9;
 
-        let (magpsf, sigmapsf) = flux2mag(flux.abs(), flux_err);
-        let diffmaglim = fluxerr2diffmaglim(flux_err);
+        let ap_flux = dia_source.ap_flux.ok_or(AlertError::MissingFluxAperture)? * 1e-9;
+        let ap_flux_err = dia_source
+            .ap_flux_err
+            .ok_or(AlertError::MissingFluxAperture)?
+            * 1e-9;
+
+        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err);
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err);
+
+        let (magap, sigmagap) = flux2mag(ap_flux.abs(), ap_flux_err);
 
         Ok(Candidate {
             dia_source,
             magpsf,
             sigmapsf,
             diffmaglim,
-            isdiffpos: flux > 0.0,
-            snr: flux.abs() / flux_err,
+            isdiffpos: psf_flux > 0.0,
+            snr: psf_flux.abs() / psf_flux_err,
+            magap,
+            sigmagap,
         })
     }
 }
@@ -273,8 +227,9 @@ pub struct DiaObject {
     #[serde(rename = "decErr")]
     pub dec_err: Option<f32>,
     /// Time at which the object was at a position ra/dec, expressed as Modified Julian Date, International Atomic Time.
-    #[serde(rename = "radecMjdTai")]
-    pub radec_mjd_tai: Option<f64>,
+    #[serde(rename(deserialize = "radecMjdTai", serialize = "jd"))]
+    #[serde(deserialize_with = "deserialize_mjd_option")]
+    pub jd: Option<f64>,
     /// Proper motion in right ascension.
     #[serde(rename = "pmRa")]
     pub pm_ra: Option<f32>,
@@ -424,14 +379,36 @@ pub struct DiaObject {
     /// Mean of the y band flux errors.
     #[serde(rename = "y_psfFluxErrMean")]
     pub y_psf_flux_err_mean: Option<f32>,
+
+    #[serde(rename = "nearbyObj1")]
+    pub nearby_obj1: Option<i64>,
+    #[serde(rename = "nearbyObj1Dist")]
+    pub nearby_obj1_dist: Option<f32>,
+    #[serde(rename = "nearbyObj1LnP")]
+    pub nearby_obj1_lnp: Option<f32>,
+
+    #[serde(rename = "nearbyObj2")]
+    pub nearby_obj2: Option<i64>,
+    #[serde(rename = "nearbyObj2Dist")]
+    pub nearby_obj2_dist: Option<f32>,
+    #[serde(rename = "nearbyObj2LnP")]
+    pub nearby_obj2_lnp: Option<f32>,
+
+    #[serde(rename = "nearbyObj3")]
+    pub nearby_obj3: Option<i64>,
+    #[serde(rename = "nearbyObj3Dist")]
+    pub nearby_obj3_dist: Option<f32>,
+    #[serde(rename = "nearbyObj3LnP")]
+    pub nearby_obj3_lnp: Option<f32>,
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct DiaNondetectionLimit {
     #[serde(rename = "ccdVisitId")]
     pub ccd_visit_id: i64,
-    #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
-    pub mjd: f64,
+    #[serde(rename(deserialize = "midpointMjdTai", serialize = "jd"))]
+    #[serde(deserialize_with = "deserialize_mjd")]
+    pub jd: f64,
     pub band: String,
     #[serde(rename = "diaNoise")]
     pub dia_noise: f32,
@@ -478,8 +455,9 @@ pub struct DiaForcedSource {
     #[serde(rename = "psfFluxErr")]
     pub psf_flux_err: Option<f32>,
     /// Effective mid-visit time for this diaForcedSource, expressed as Modified Julian Date, International Atomic Time.
-    #[serde(rename(deserialize = "midpointMjdTai", serialize = "mjd"))]
-    pub mjd: f64,
+    #[serde(rename(deserialize = "midpointMjdTai", serialize = "jd"))]
+    #[serde(deserialize_with = "deserialize_mjd")]
+    pub jd: f64,
     /// Filter band this source was observed with.
     pub band: Option<String>,
 }
@@ -498,25 +476,25 @@ pub struct ForcedPhot {
 impl TryFrom<DiaForcedSource> for ForcedPhot {
     type Error = AlertError;
     fn try_from(dia_forced_source: DiaForcedSource) -> Result<Self, Self::Error> {
-        let flux = dia_forced_source
+        let psf_flux = dia_forced_source
             .psf_flux
             .ok_or(AlertError::MissingFluxPSF)?
             * 1e-9;
-        let flux_err = dia_forced_source
+        let psf_flux_err = dia_forced_source
             .psf_flux_err
             .ok_or(AlertError::MissingFluxPSF)?
             * 1e-9;
 
-        let (magpsf, sigmapsf) = flux2mag(flux.abs(), flux_err);
-        let diffmaglim = fluxerr2diffmaglim(flux_err);
+        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err);
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err);
 
         Ok(ForcedPhot {
             dia_forced_source,
             magpsf,
             sigmapsf,
             diffmaglim,
-            isdiffpos: flux > 0.0,
-            snr: flux.abs() / flux_err,
+            isdiffpos: psf_flux > 0.0,
+            snr: psf_flux.abs() / psf_flux_err,
         })
     }
 }
@@ -601,6 +579,25 @@ where
         .map(NonDetection::from)
         .collect::<Vec<NonDetection>>();
     Ok(Some(nondetections))
+}
+
+fn deserialize_mjd<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let mjd = <f64 as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(mjd + 2400000.5)
+}
+
+fn deserialize_mjd_option<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let mjd = <Option<f64> as serde::Deserialize>::deserialize(deserializer)?;
+    match mjd {
+        Some(mjd) => Ok(Some(mjd + 2400000.5)),
+        None => Ok(None),
+    }
 }
 
 pub struct LsstAlertWorker {

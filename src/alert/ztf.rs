@@ -25,21 +25,19 @@ pub struct Cutout {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct PrvCandidate {
     pub jd: f64,
-    pub fid: i32,
+    #[serde(rename(deserialize = "fid", serialize = "band"))]
+    #[serde(deserialize_with = "deserialize_fid")]
+    pub band: String,
     pub pid: i64,
     pub diffmaglim: Option<f32>,
-    pub pdiffimfilename: Option<String>,
     pub programpi: Option<String>,
     pub programid: i32,
     pub candid: Option<i64>,
     #[serde(deserialize_with = "deserialize_isdiffpos_option")]
     pub isdiffpos: Option<bool>,
-    pub tblid: Option<i64>,
     pub nid: Option<i32>,
     pub rcid: Option<i32>,
     pub field: Option<i32>,
-    pub xpos: Option<f32>,
-    pub ypos: Option<f32>,
     pub ra: Option<f64>,
     pub dec: Option<f64>,
     pub magpsf: Option<f32>,
@@ -53,35 +51,25 @@ pub struct PrvCandidate {
     pub chinr: Option<f32>,
     pub sharpnr: Option<f32>,
     pub sky: Option<f32>,
-    pub magdiff: Option<f32>,
     pub fwhm: Option<f32>,
-    pub classtar: Option<f32>,
     pub mindtoedge: Option<f32>,
-    pub magfromlim: Option<f32>,
     pub seeratio: Option<f32>,
     pub aimage: Option<f32>,
     pub bimage: Option<f32>,
-    pub aimagerat: Option<f32>,
-    pub bimagerat: Option<f32>,
     pub elong: Option<f32>,
     pub nneg: Option<i32>,
     pub nbad: Option<i32>,
     pub rb: Option<f32>,
     pub ssdistnr: Option<f32>,
     pub ssmagnr: Option<f32>,
+    #[serde(deserialize_with = "deserialize_ssnamenr")]
     pub ssnamenr: Option<String>,
-    pub sumrat: Option<f32>,
-    pub magapbig: Option<f32>,
-    pub sigmagapbig: Option<f32>,
     pub ranr: Option<f64>,
     pub decnr: Option<f64>,
     pub scorr: Option<f64>,
     pub magzpsci: Option<f32>,
     pub magzpsciunc: Option<f32>,
     pub magzpscirms: Option<f32>,
-    pub clrcoeff: Option<f32>,
-    pub clrcounc: Option<f32>,
-    pub rbversion: String,
 }
 
 /// avro alert schema
@@ -122,21 +110,19 @@ pub struct FpHist {
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Candidate {
     pub jd: f64,
-    pub fid: i32,
+    #[serde(rename(deserialize = "fid", serialize = "band"))]
+    #[serde(deserialize_with = "deserialize_fid")]
+    pub band: String,
     pub pid: i64,
     pub diffmaglim: Option<f32>,
-    pub pdiffimfilename: Option<String>,
     pub programpi: Option<String>,
     pub programid: i32,
     pub candid: i64,
     #[serde(deserialize_with = "deserialize_isdiffpos")]
     pub isdiffpos: bool,
-    pub tblid: Option<i64>,
     pub nid: Option<i32>,
     pub rcid: Option<i32>,
     pub field: Option<i32>,
-    pub xpos: Option<f32>,
-    pub ypos: Option<f32>,
     pub ra: f64,
     pub dec: f64,
     pub magpsf: f32,
@@ -150,26 +136,19 @@ pub struct Candidate {
     pub chinr: Option<f32>,
     pub sharpnr: Option<f32>,
     pub sky: Option<f32>,
-    pub magdiff: Option<f32>,
     pub fwhm: Option<f32>,
-    pub classtar: Option<f32>,
     pub mindtoedge: Option<f32>,
-    pub magfromlim: Option<f32>,
     pub seeratio: Option<f32>,
     pub aimage: Option<f32>,
     pub bimage: Option<f32>,
-    pub aimagerat: Option<f32>,
-    pub bimagerat: Option<f32>,
     pub elong: Option<f32>,
     pub nneg: Option<i32>,
     pub nbad: Option<i32>,
     pub rb: Option<f32>,
     pub ssdistnr: Option<f32>,
     pub ssmagnr: Option<f32>,
+    #[serde(deserialize_with = "deserialize_ssnamenr")]
     pub ssnamenr: Option<String>,
-    pub sumrat: Option<f32>,
-    pub magapbig: Option<f32>,
-    pub sigmagapbig: Option<f32>,
     pub ranr: f64,
     pub decnr: f64,
     pub sgmag1: Option<f32>,
@@ -181,50 +160,28 @@ pub struct Candidate {
     pub ndethist: i32,
     pub ncovhist: i32,
     pub jdstarthist: Option<f64>,
-    pub jdendhist: Option<f64>,
     pub scorr: Option<f64>,
-    pub tooflag: Option<i32>,
-    pub objectidps1: Option<i64>,
-    pub objectidps2: Option<i64>,
     pub sgmag2: Option<f32>,
     pub srmag2: Option<f32>,
     pub simag2: Option<f32>,
     pub szmag2: Option<f32>,
     pub sgscore2: Option<f32>,
     pub distpsnr2: Option<f32>,
-    pub objectidps3: Option<i64>,
     pub sgmag3: Option<f32>,
     pub srmag3: Option<f32>,
     pub simag3: Option<f32>,
     pub szmag3: Option<f32>,
     pub sgscore3: Option<f32>,
     pub distpsnr3: Option<f32>,
-    pub nmtchps: i32,
-    pub rfid: i64,
-    pub jdstartref: f64,
-    pub jdendref: f64,
-    pub nframesref: i32,
-    pub rbversion: String,
     pub dsnrms: Option<f32>,
     pub ssnrms: Option<f32>,
     pub dsdiff: Option<f32>,
     pub magzpsci: Option<f32>,
     pub magzpsciunc: Option<f32>,
     pub magzpscirms: Option<f32>,
-    pub nmatches: i32,
-    pub clrcoeff: Option<f32>,
-    pub clrcounc: Option<f32>,
-    pub zpclrcov: Option<f32>,
     pub zpmed: Option<f32>,
-    pub clrmed: Option<f32>,
-    pub clrrms: Option<f32>,
-    pub neargaia: Option<f32>,
-    pub neargaiabright: Option<f32>,
-    pub maggaia: Option<f32>,
-    pub maggaiabright: Option<f32>,
     pub exptime: Option<f32>,
     pub drb: Option<f32>,
-    pub drbversion: String,
 }
 
 fn deserialize_isdiffpos_option<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
@@ -234,8 +191,11 @@ where
     let value: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
     match value {
         serde_json::Value::String(s) => {
-            // if s is in t, T, true, True
-            if s.eq_ignore_ascii_case("t") || s.eq_ignore_ascii_case("true") {
+            // if s is in t, T, true, True, "1"
+            if s.eq_ignore_ascii_case("t")
+                || s.eq_ignore_ascii_case("true")
+                || s.eq_ignore_ascii_case("1")
+            {
                 Ok(Some(true))
             } else {
                 Ok(Some(false))
@@ -252,6 +212,29 @@ where
     D: Deserializer<'de>,
 {
     deserialize_isdiffpos_option(deserializer).map(|x| x.unwrap())
+}
+
+fn deserialize_fid<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // the fid is a mapper: 1 = g, 2 = r, 3 = i
+    let fid: i32 = serde::Deserialize::deserialize(deserializer)?;
+    match fid {
+        1 => Ok("g".to_string()),
+        2 => Ok("r".to_string()),
+        3 => Ok("i".to_string()),
+        _ => Err(serde::de::Error::custom(format!("Unknown fid: {}", fid))),
+    }
+}
+
+fn deserialize_ssnamenr<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // if the value is null, "null", "", return None
+    let value: Option<String> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(value.filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("null")))
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
