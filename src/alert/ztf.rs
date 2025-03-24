@@ -233,18 +233,8 @@ where
     D: Deserializer<'de>,
 {
     // if the value is null, "null", "", return None
-    let value: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
-    match value {
-        serde_json::Value::Null => Ok(None),
-        serde_json::Value::String(s) => {
-            if s.is_empty() || s.eq_ignore_ascii_case("null") {
-                Ok(None)
-            } else {
-                Ok(Some(s))
-            }
-        }
-        _ => Ok(None),
-    }
+    let value: Option<String> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(value.filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("null")))
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
