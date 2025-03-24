@@ -444,15 +444,14 @@ pub struct NonDetection {
     pub diffmaglim: f32,
 }
 
-impl TryFrom<DiaNondetectionLimit> for NonDetection {
-    type Error = AlertError;
-    fn try_from(dia_nondetection_limit: DiaNondetectionLimit) -> Result<Self, Self::Error> {
+impl From<DiaNondetectionLimit> for NonDetection {
+    fn from(dia_nondetection_limit: DiaNondetectionLimit) -> Self {
         let diffmaglim = fluxerr2diffmaglim(dia_nondetection_limit.dia_noise * 1e-9);
 
-        Ok(NonDetection {
+        NonDetection {
             dia_nondetection_limit,
             diffmaglim,
-        })
+        }
     }
 }
 
@@ -489,11 +488,11 @@ pub struct DiaForcedSource {
 pub struct ForcedPhot {
     #[serde(flatten)]
     pub dia_forced_source: DiaForcedSource,
-    pub magpsf: Option<f32>,
-    pub sigmapsf: Option<f32>,
-    pub diffmaglim: Option<f32>,
-    pub isdiffpos: Option<bool>,
-    pub snr: Option<f32>,
+    pub magpsf: f32,
+    pub sigmapsf: f32,
+    pub diffmaglim: f32,
+    pub isdiffpos: bool,
+    pub snr: f32,
 }
 
 impl TryFrom<DiaForcedSource> for ForcedPhot {
@@ -513,11 +512,11 @@ impl TryFrom<DiaForcedSource> for ForcedPhot {
 
         Ok(ForcedPhot {
             dia_forced_source,
-            magpsf: Some(magpsf),
-            sigmapsf: Some(sigmapsf),
-            diffmaglim: Some(diffmaglim),
-            isdiffpos: Some(flux > 0.0),
-            snr: Some(flux.abs() / flux_err),
+            magpsf,
+            sigmapsf,
+            diffmaglim,
+            isdiffpos: flux > 0.0,
+            snr: flux.abs() / flux_err,
         })
     }
 }
@@ -599,9 +598,8 @@ where
         <Vec<DiaNondetectionLimit> as serde::Deserialize>::deserialize(deserializer)?;
     let nondetections = dia_nondetection_limits
         .into_iter()
-        .map(NonDetection::try_from)
-        .collect::<Result<Vec<NonDetection>, AlertError>>()
-        .map_err(serde::de::Error::custom)?;
+        .map(NonDetection::from)
+        .collect::<Vec<NonDetection>>();
     Ok(Some(nondetections))
 }
 
