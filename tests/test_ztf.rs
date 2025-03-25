@@ -50,21 +50,23 @@ async fn test_alert_from_avro_bytes() {
     let fp_hists = fp_hists.unwrap();
     assert_eq!(fp_hists.len(), 10);
 
-    let fp_negative_flux = fp_hists.get(0).unwrap();
-    assert_eq!(fp_negative_flux.forcediffimflux.is_some(), true);
-    assert_eq!(fp_negative_flux.forcediffimflux.unwrap(), -11859.88);
-    assert_eq!(fp_negative_flux.forcediffimfluxunc.is_some(), true);
-    assert_eq!(fp_negative_flux.forcediffimfluxunc.unwrap(), 25.300741);
-    assert_eq!(fp_negative_flux.procstatus.is_some(), true);
-    assert_eq!(fp_negative_flux.procstatus.as_ref().unwrap(), "0");
+    // at the moment, negative fluxes yield non-detections
+    // this is a conscious choice, might be revisited in the future
+    let fp_negative_det = fp_hists.get(0).unwrap();
+    assert!(fp_negative_det.magpsf.is_none());
+    assert!(fp_negative_det.sigmapsf.is_none());
+    assert!((fp_negative_det.diffmaglim - 20.879942).abs() < 1e-6);
+    assert!(fp_negative_det.isdiffpos.is_none());
+    assert!(fp_negative_det.snr.is_none());
+    assert!((fp_negative_det.fp_hist.jd - 2460447.9202778).abs() < 1e-6);
 
-    let fp_positive_flux = fp_hists.get(9).unwrap();
-    assert_eq!(fp_positive_flux.forcediffimflux.is_some(), true);
-    assert_eq!(fp_positive_flux.forcediffimflux.unwrap(), 138.203);
-    assert_eq!(fp_positive_flux.forcediffimfluxunc.is_some(), true);
-    assert_eq!(fp_positive_flux.forcediffimfluxunc.unwrap(), 46.038883);
-    assert_eq!(fp_positive_flux.procstatus.is_some(), true);
-    assert_eq!(fp_positive_flux.procstatus.as_ref().unwrap(), "0");
+    let fp_positive_det = fp_hists.get(9).unwrap();
+    assert!((fp_positive_det.magpsf.unwrap() - 20.801506).abs() < 1e-6);
+    assert!((fp_positive_det.sigmapsf.unwrap() - 0.3616859).abs() < 1e-6);
+    assert!((fp_positive_det.diffmaglim - 20.247562).abs() < 1e-6);
+    assert_eq!(fp_positive_det.isdiffpos.is_some(), true);
+    assert!((fp_positive_det.snr.unwrap() - 3.0018756).abs() < 1e-6);
+    assert!((fp_positive_det.fp_hist.jd - 2460420.9637616).abs() < 1e-6);
 
     // validate the cutouts
     assert_eq!(alert.cutout_science.clone().unwrap().len(), 13107);
