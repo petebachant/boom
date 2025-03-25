@@ -404,11 +404,17 @@ impl AlertWorker for ZtfAlertWorker {
 
         let start = std::time::Instant::now();
 
-        let mut prv_candidates_doc = prv_candidates
-            .unwrap_or(vec![])
-            .into_iter()
-            .map(|x| mongify(&x))
-            .collect::<Vec<_>>();
+        // we split the prv_candidates into detections and non-detections
+        let mut prv_candidates_doc = vec![];
+        let mut prv_nondetections_doc = vec![];
+
+        for prv_candidate in prv_candidates.unwrap_or(vec![]) {
+            if prv_candidate.magpsf.is_some() {
+                prv_candidates_doc.push(mongify(&prv_candidate));
+            } else {
+                prv_nondetections_doc.push(mongify(&prv_candidate));
+            }
+        }
         prv_candidates_doc.push(candidate_doc);
 
         let fp_hist_doc = fp_hist
@@ -424,6 +430,7 @@ impl AlertWorker for ZtfAlertWorker {
             let alert_aux_doc = doc! {
                 "_id": &object_id,
                 "prv_candidates": prv_candidates_doc,
+                "prv_nondetections": prv_nondetections_doc,
                 "fp_hists": fp_hist_doc,
                 "cross_matches": xmatch(ra, dec, &self.xmatch_configs, &self.db).await,
                 "created_at": now,
@@ -446,6 +453,7 @@ impl AlertWorker for ZtfAlertWorker {
             let update_doc = doc! {
                 "$addToSet": {
                     "prv_candidates": { "$each": prv_candidates_doc },
+                    "prv_nondetections": { "$each": prv_nondetections_doc },
                     "fp_hists": { "$each": fp_hist_doc }
                 },
                 "$set": {
