@@ -82,12 +82,12 @@ async fn main() {
         }
     }
 
-    let x = collection.insert_one(filter).await;
-
-    match x {
+    match collection.insert_one(filter).await {
+        Ok(_) => {
+            println!("Filter added successfully");
+        }
         Err(e) => {
             error!("error inserting filter obj: {}", e);
         }
-        _ => {}
     }
 }
