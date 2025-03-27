@@ -201,7 +201,11 @@ where
                 Ok(Some(false))
             }
         }
-        serde_json::Value::Number(n) => Ok(Some(n.as_i64().unwrap() == 1)),
+        serde_json::Value::Number(n) => Ok(Some(
+            n.as_i64().ok_or(serde::de::Error::custom(
+                "Failed to convert isdiffpos to i64",
+            ))? == 1,
+        )),
         serde_json::Value::Bool(b) => Ok(Some(b)),
         _ => Ok(None),
     }
