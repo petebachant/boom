@@ -2,6 +2,7 @@ use crate::{
     alert::base::{AlertError, AlertWorker, AlertWorkerError},
     conf,
     utils::{
+        conversions::{flux2mag, fluxerr2diffmaglim, SNT},
         db::{cutout2bsonbinary, get_coordinates, mongify},
         spatial::xmatch,
     },
@@ -104,6 +105,53 @@ pub struct FpHist {
     pub sigmagnr: Option<f32>,
     pub chinr: Option<f32>,
     pub sharpnr: Option<f32>,
+}
+
+#[derive(Debug, PartialEq, Clone, serde::Deserialize, serde::Serialize)]
+pub struct ForcedPhot {
+    #[serde(flatten)]
+    pub fp_hist: FpHist,
+    pub magpsf: Option<f32>,
+    pub sigmapsf: Option<f32>,
+    pub diffmaglim: f32,
+    pub isdiffpos: Option<bool>,
+    pub snr: Option<f32>,
+}
+
+impl TryFrom<FpHist> for ForcedPhot {
+    type Error = AlertError;
+    fn try_from(fp_hist: FpHist) -> Result<Self, Self::Error> {
+        let psf_flux_err = fp_hist
+            .forcediffimfluxunc
+            .ok_or(AlertError::MissingFluxPSF)?;
+
+        let magzpsci = fp_hist.magzpsci.ok_or(AlertError::MissingMagZPSci)?;
+
+        let (magpsf, sigmapsf, isdiffpos, snr) = match fp_hist.forcediffimflux {
+            Some(psf_flux) if (psf_flux / psf_flux_err) > SNT => {
+                let (magpsf, sigmapsf) = flux2mag(psf_flux, psf_flux_err, magzpsci);
+                let isdiffpos = psf_flux > 0.0;
+                (
+                    Some(magpsf),
+                    Some(sigmapsf),
+                    Some(isdiffpos),
+                    Some(psf_flux / psf_flux_err),
+                )
+            }
+            _ => (None, None, None, None),
+        };
+
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err, magzpsci);
+
+        Ok(ForcedPhot {
+            fp_hist,
+            magpsf,
+            sigmapsf,
+            diffmaglim,
+            isdiffpos,
+            snr,
+        })
+    }
 }
 
 /// avro alert schema
@@ -228,6 +276,21 @@ where
     }
 }
 
+fn deserialize_prv_forced_sources<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<ForcedPhot>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let dia_forced_sources = <Vec<FpHist> as serde::Deserialize>::deserialize(deserializer)?;
+    let forced_phots = dia_forced_sources
+        .into_iter()
+        .map(ForcedPhot::try_from)
+        .collect::<Result<Vec<ForcedPhot>, AlertError>>()
+        .map_err(serde::de::Error::custom)?;
+    Ok(Some(forced_phots))
+}
+
 fn deserialize_ssnamenr<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
@@ -246,7 +309,8 @@ pub struct ZtfAlert {
     pub candid: i64,
     pub candidate: Candidate,
     pub prv_candidates: Option<Vec<PrvCandidate>>,
-    pub fp_hists: Option<Vec<FpHist>>,
+    #[serde(deserialize_with = "deserialize_prv_forced_sources")]
+    pub fp_hists: Option<Vec<ForcedPhot>>,
     #[serde(
         rename = "cutoutScience",
         deserialize_with = "deserialize_cutout_as_bytes"

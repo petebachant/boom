@@ -62,6 +62,8 @@ pub enum AlertError {
     MissingFluxAperture,
     #[error("missing ap flux error")]
     MissingFluxApertureError,
+    #[error("missing mag zero point")]
+    MissingMagZPSci,
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -57,11 +57,11 @@ async fn test_lsst_alert_from_avro_bytes() {
     let fp_hist = fp_hists.get(0).unwrap();
 
     assert!((fp_hist.dia_forced_source.jd - 2457454.7992).abs() < 1e-6);
-    assert!((fp_hist.magpsf - 24.735056).abs() < 1e-6);
-    assert!((fp_hist.sigmapsf - 0.329754).abs() < 1e-6);
+    assert!((fp_hist.magpsf.unwrap() - 24.735056).abs() < 1e-6);
+    assert!((fp_hist.sigmapsf.unwrap() - 0.329754).abs() < 1e-6);
     assert!((fp_hist.diffmaglim - 24.281467).abs() < 1e-6);
-    assert!((fp_hist.snr - 3.292566).abs() < 1e-6);
-    assert_eq!(fp_hist.isdiffpos, true);
+    assert!((fp_hist.snr.unwrap() - 3.292566).abs() < 1e-6);
+    assert_eq!(fp_hist.isdiffpos.unwrap(), true);
     assert_eq!(fp_hist.dia_forced_source.band.clone().unwrap(), "g");
 
     // validate the non detections
