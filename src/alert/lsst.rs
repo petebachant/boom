@@ -8,7 +8,7 @@ use crate::{
     alert::base::{AlertError, AlertWorker, AlertWorkerError, SchemaRegistryError},
     conf,
     utils::{
-        conversions::{flux2mag, fluxerr2diffmaglim},
+        conversions::{flux2mag, fluxerr2diffmaglim, SNT, ZP_AB},
         db::{cutout2bsonbinary, get_coordinates, mongify},
         spatial::xmatch,
     },
@@ -193,10 +193,10 @@ impl TryFrom<DiaSource> for Candidate {
             .ok_or(AlertError::MissingFluxAperture)?
             * 1e-9;
 
-        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err, 8.9);
-        let diffmaglim = fluxerr2diffmaglim(psf_flux_err, 8.9);
+        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err, ZP_AB);
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err, ZP_AB);
 
-        let (magap, sigmagap) = flux2mag(ap_flux.abs(), ap_flux_err, 8.9);
+        let (magap, sigmagap) = flux2mag(ap_flux.abs(), ap_flux_err, ZP_AB);
 
         Ok(Candidate {
             dia_source,
@@ -423,7 +423,7 @@ pub struct NonDetection {
 
 impl From<DiaNondetectionLimit> for NonDetection {
     fn from(dia_nondetection_limit: DiaNondetectionLimit) -> Self {
-        let diffmaglim = fluxerr2diffmaglim(dia_nondetection_limit.dia_noise * 1e-9, 8.9);
+        let diffmaglim = fluxerr2diffmaglim(dia_nondetection_limit.dia_noise * 1e-9, ZP_AB);
 
         NonDetection {
             dia_nondetection_limit,
@@ -486,9 +486,9 @@ impl TryFrom<DiaForcedSource> for ForcedPhot {
         let (magpsf, sigmapsf, isdiffpos, snr) = match dia_forced_source.psf_flux {
             Some(psf_flux) => {
                 let psf_flux = psf_flux * 1e-9;
-                if (psf_flux / psf_flux_err) > 3.0 {
+                if (psf_flux / psf_flux_err) > SNT {
                     let isdiffpos = psf_flux > 0.0;
-                    let (magpsf, sigmapsf) = flux2mag(psf_flux, psf_flux_err, 8.9);
+                    let (magpsf, sigmapsf) = flux2mag(psf_flux, psf_flux_err, ZP_AB);
                     (
                         Some(magpsf),
                         Some(sigmapsf),
@@ -502,7 +502,7 @@ impl TryFrom<DiaForcedSource> for ForcedPhot {
             _ => (None, None, None, None),
         };
 
-        let diffmaglim = fluxerr2diffmaglim(psf_flux_err, 8.9);
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err, ZP_AB);
 
         Ok(ForcedPhot {
             dia_forced_source,
@@ -510,7 +510,7 @@ impl TryFrom<DiaForcedSource> for ForcedPhot {
             sigmapsf,
             diffmaglim,
             isdiffpos,
-            snr: snr,
+            snr,
         })
     }
 }

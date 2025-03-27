@@ -2,7 +2,7 @@ use crate::{
     alert::base::{AlertError, AlertWorker, AlertWorkerError},
     conf,
     utils::{
-        conversions::{flux2mag, fluxerr2diffmaglim},
+        conversions::{flux2mag, fluxerr2diffmaglim, SNT},
         db::{cutout2bsonbinary, get_coordinates, mongify},
         spatial::xmatch,
     },
@@ -128,7 +128,7 @@ impl TryFrom<FpHist> for ForcedPhot {
         let magzpsci = fp_hist.magzpsci.ok_or(AlertError::MissingMagZPSci)?;
 
         let (magpsf, sigmapsf, isdiffpos, snr) = match fp_hist.forcediffimflux {
-            Some(psf_flux) if (psf_flux / psf_flux_err) > 3.0 => {
+            Some(psf_flux) if (psf_flux / psf_flux_err) > SNT => {
                 let (magpsf, sigmapsf) = flux2mag(psf_flux, psf_flux_err, magzpsci);
                 let isdiffpos = psf_flux > 0.0;
                 (
@@ -149,7 +149,7 @@ impl TryFrom<FpHist> for ForcedPhot {
             sigmapsf,
             diffmaglim,
             isdiffpos,
-            snr: snr,
+            snr,
         })
     }
 }
