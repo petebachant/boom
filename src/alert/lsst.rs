@@ -8,7 +8,7 @@ use crate::{
     alert::base::{AlertError, AlertWorker, AlertWorkerError, SchemaRegistryError},
     conf,
     utils::{
-        conversions::{flux2mag, fluxerr2diffmaglim},
+        conversions::{flux2mag, fluxerr2diffmaglim, SNT, ZP_AB},
         db::{cutout2bsonbinary, get_coordinates, mongify},
         spatial::xmatch,
     },
@@ -193,10 +193,10 @@ impl TryFrom<DiaSource> for Candidate {
             .ok_or(AlertError::MissingFluxAperture)?
             * 1e-9;
 
-        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err);
-        let diffmaglim = fluxerr2diffmaglim(psf_flux_err);
+        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err, ZP_AB);
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err, ZP_AB);
 
-        let (magap, sigmagap) = flux2mag(ap_flux.abs(), ap_flux_err);
+        let (magap, sigmagap) = flux2mag(ap_flux.abs(), ap_flux_err, ZP_AB);
 
         Ok(Candidate {
             dia_source,
@@ -423,7 +423,7 @@ pub struct NonDetection {
 
 impl From<DiaNondetectionLimit> for NonDetection {
     fn from(dia_nondetection_limit: DiaNondetectionLimit) -> Self {
-        let diffmaglim = fluxerr2diffmaglim(dia_nondetection_limit.dia_noise * 1e-9);
+        let diffmaglim = fluxerr2diffmaglim(dia_nondetection_limit.dia_noise * 1e-9, ZP_AB);
 
         NonDetection {
             dia_nondetection_limit,
@@ -466,35 +466,51 @@ pub struct DiaForcedSource {
 pub struct ForcedPhot {
     #[serde(flatten)]
     pub dia_forced_source: DiaForcedSource,
-    pub magpsf: f32,
-    pub sigmapsf: f32,
+    pub magpsf: Option<f32>,
+    pub sigmapsf: Option<f32>,
     pub diffmaglim: f32,
-    pub isdiffpos: bool,
-    pub snr: f32,
+    pub isdiffpos: Option<bool>,
+    pub snr: Option<f32>,
 }
 
 impl TryFrom<DiaForcedSource> for ForcedPhot {
     type Error = AlertError;
     fn try_from(dia_forced_source: DiaForcedSource) -> Result<Self, Self::Error> {
-        let psf_flux = dia_forced_source
-            .psf_flux
-            .ok_or(AlertError::MissingFluxPSF)?
-            * 1e-9;
         let psf_flux_err = dia_forced_source
             .psf_flux_err
             .ok_or(AlertError::MissingFluxPSF)?
             * 1e-9;
 
-        let (magpsf, sigmapsf) = flux2mag(psf_flux.abs(), psf_flux_err);
-        let diffmaglim = fluxerr2diffmaglim(psf_flux_err);
+        // for now, we only consider positive detections (flux positive) as detections
+        // may revisit this later
+        let (magpsf, sigmapsf, isdiffpos, snr) = match dia_forced_source.psf_flux {
+            Some(psf_flux) => {
+                let psf_flux = psf_flux * 1e-9;
+                if (psf_flux / psf_flux_err) > SNT {
+                    let isdiffpos = psf_flux > 0.0;
+                    let (magpsf, sigmapsf) = flux2mag(psf_flux, psf_flux_err, ZP_AB);
+                    (
+                        Some(magpsf),
+                        Some(sigmapsf),
+                        Some(isdiffpos),
+                        Some(psf_flux / psf_flux_err),
+                    )
+                } else {
+                    (None, None, None, None)
+                }
+            }
+            _ => (None, None, None, None),
+        };
+
+        let diffmaglim = fluxerr2diffmaglim(psf_flux_err, ZP_AB);
 
         Ok(ForcedPhot {
             dia_forced_source,
             magpsf,
             sigmapsf,
             diffmaglim,
-            isdiffpos: psf_flux > 0.0,
-            snr: psf_flux.abs() / psf_flux_err,
+            isdiffpos,
+            snr,
         })
     }
 }
