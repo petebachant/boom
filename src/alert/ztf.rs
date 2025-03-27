@@ -309,7 +309,6 @@ pub struct ZtfAlert {
     pub candid: i64,
     pub candidate: Candidate,
     pub prv_candidates: Option<Vec<PrvCandidate>>,
-    #[serde(rename = "fp_hists")]
     #[serde(deserialize_with = "deserialize_prv_forced_sources")]
     pub fp_hists: Option<Vec<ForcedPhot>>,
     #[serde(
