@@ -1,6 +1,6 @@
 use boom::{
     alert::{AlertWorker, ZtfAlertWorker},
-    utils::db::mongify,
+    utils::{db::mongify, testing::drop_alert_from_collections},
 };
 
 const CONFIG_FILE: &str = "tests/config.test.yaml";
@@ -143,4 +143,24 @@ async fn test_alert_from_avro_bytes() {
         fp_positive_flux.get_f64("forcediffimflux").unwrap(),
         138.2030029296875
     );
+}
+
+#[tokio::test]
+async fn test_process_ztf_alert() {
+    // drop the alert from the database
+    drop_alert_from_collections(2695378462115010012, "ZTF")
+        .await
+        .unwrap();
+    let mut alert_worker = ZtfAlertWorker::new(CONFIG_FILE).await.unwrap();
+
+    let file_name = "tests/data/alerts/ztf/2695378462115010012.avro";
+    let bytes_content = std::fs::read(file_name).unwrap();
+    let result = alert_worker.process_alert(&bytes_content).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 2695378462115010012);
+
+    // now that it has been inserted in the database, calling process alert should return an error
+    let result = alert_worker.process_alert(&bytes_content).await;
+
+    assert!(result.is_err());
 }

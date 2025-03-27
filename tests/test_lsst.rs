@@ -1,4 +1,7 @@
-use boom::alert::{AlertWorker, LsstAlertWorker};
+use boom::{
+    alert::{AlertWorker, LsstAlertWorker},
+    utils::testing::drop_alert_from_collections,
+};
 
 const CONFIG_FILE: &str = "tests/config.test.yaml";
 
@@ -73,11 +76,21 @@ async fn test_lsst_alert_from_avro_bytes() {
 }
 
 #[tokio::test]
-async fn test_process_alert() {
+async fn test_process_lsst_alert() {
+    // first we need to drop the alert from the database
+    drop_alert_from_collections(25409136044802067, "LSST")
+        .await
+        .unwrap();
+
     let mut alert_worker = LsstAlertWorker::new(CONFIG_FILE).await.unwrap();
 
     let file_name = "tests/data/alerts/lsst/0.avro";
     let bytes_content = std::fs::read(file_name).unwrap();
     let result = alert_worker.process_alert(&bytes_content).await.unwrap();
     assert_eq!(result, 25409136044802067);
+
+    // now that it has been inserted in the database, calling process alert should return an error
+    let result = alert_worker.process_alert(&bytes_content).await;
+
+    assert!(result.is_err());
 }
