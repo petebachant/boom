@@ -484,16 +484,20 @@ impl TryFrom<DiaForcedSource> for ForcedPhot {
         // for now, we only consider positive detections (flux positive) as detections
         // may revisit this later
         let (magpsf, sigmapsf, isdiffpos, snr) = match dia_forced_source.psf_flux {
-            Some(psf_flux) if (psf_flux / psf_flux_err) > 3.0 => {
-                let isdiffpos = psf_flux > 0.0;
+            Some(psf_flux) => {
                 let psf_flux = psf_flux * 1e-9;
-                let (magpsf, sigmapsf) = flux2mag(psf_flux, psf_flux_err, 8.9);
-                (
-                    Some(magpsf),
-                    Some(sigmapsf),
-                    Some(isdiffpos),
-                    Some(psf_flux / psf_flux_err),
-                )
+                if (psf_flux / psf_flux_err) > 3.0 {
+                    let isdiffpos = psf_flux > 0.0;
+                    let (magpsf, sigmapsf) = flux2mag(psf_flux, psf_flux_err, 8.9);
+                    (
+                        Some(magpsf),
+                        Some(sigmapsf),
+                        Some(isdiffpos),
+                        Some(psf_flux / psf_flux_err),
+                    )
+                } else {
+                    (None, None, None, None)
+                }
             }
             _ => (None, None, None, None),
         };
