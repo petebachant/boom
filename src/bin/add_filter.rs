@@ -56,14 +56,31 @@ async fn main() {
     };
 
     // insert the filter into the database
-    let config_file = conf::load_config("config.yaml").unwrap();
-    let db = conf::build_db(&config_file).await.unwrap();
+    let config_file = match conf::load_config("config.yaml") {
+        Ok(config) => config,
+        Err(e) => {
+            error!("error loading config file: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let db = match conf::build_db(&config_file).await {
+        Ok(db) => db,
+        Err(e) => {
+            error!("error building db: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     let collection = db.collection::<mongodb::bson::Document>("filters");
 
     // add a unique index on filter_id
-    create_index(&collection, doc! {"filter_id": 1}, true)
-        .await
-        .unwrap();
+    match create_index(&collection, doc! {"filter_id": 1}, true).await {
+        Ok(_) => {}
+        Err(e) => {
+            error!("error creating index on filter_id: {}", e);
+        }
+    }
 
     let x = collection.insert_one(filter).await;
 
