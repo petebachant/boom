@@ -48,14 +48,6 @@ fn test_build_xmatch_configs() {
     let projection = &first.projection;
     // test reading a few of the expected fields
     assert_eq!(projection.get("_id").unwrap().as_i64().unwrap(), 1);
-    assert_eq!(
-        projection
-            .get("coordinates.radec_str")
-            .unwrap()
-            .as_i64()
-            .unwrap(),
-        1
-    );
     assert_eq!(projection.get("gMeanPSFMag").unwrap().as_i64().unwrap(), 1);
     assert_eq!(
         projection.get("gMeanPSFMagErr").unwrap().as_i64().unwrap(),
@@ -76,7 +68,6 @@ async fn test_build_db() {
 fn test_catalogxmatchconfig() {
     let ps1_projection = mongodb::bson::doc! {
         "_id": 1,
-        "coordinates.radec_str": 1,
         "gMeanPSFMag": 1,
         "gMeanPSFMagErr": 1
     };
