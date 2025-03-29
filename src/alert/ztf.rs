@@ -412,9 +412,9 @@ impl ZtfAlertWorker {
         avro_bytes: &[u8],
     ) -> Result<ZtfAlert, AlertError> {
         // if the schema is not cached, get it from the avro_bytes
-        let (schema_ref, start_idx) = match self.cached_schema {
-            Some(ref schema) => (schema, self.cached_start_idx.unwrap()),
-            None => {
+        let (schema_ref, start_idx) = match (self.cached_schema.as_ref(), self.cached_start_idx) {
+            (Some(schema), Some(start_idx)) => (schema, start_idx),
+            _ => {
                 let (schema, startidx) = get_schema_and_startidx(avro_bytes)?;
                 self.cached_schema = Some(schema);
                 self.cached_start_idx = Some(startidx);
