@@ -26,22 +26,24 @@ pub fn get_schema_and_startidx(avro_bytes: &[u8]) -> Result<(Schema, usize), Sch
     let mut cursor = std::io::Cursor::new(avro_bytes);
 
     let mut buf = [0; 4];
-    cursor.read_exact(&mut buf).unwrap();
+    cursor
+        .read_exact(&mut buf)
+        .map_err(SchemaRegistryError::CursorError)?;
     if buf != [b'O', b'b', b'j', 1u8] {
         return Err(SchemaRegistryError::MagicBytesError);
     }
 
     // This let's it skip through the bytes of the schema and other metadata
     let meta_schema = Schema::map(Schema::Bytes);
-    from_avro_datum(&meta_schema, &mut cursor, None).unwrap();
+    from_avro_datum(&meta_schema, &mut cursor, None).map_err(SchemaRegistryError::InvalidSchema)?;
 
     // we skip through the bytes created by the package the ZTF alert
     // pipeline used to create their avro
     let mut buf = [0; 16];
     cursor
         .read_exact(&mut buf)
-        .map_err(SchemaRegistryError::CursorError)
-        .unwrap();
+        .map_err(SchemaRegistryError::CursorError)?;
+
     if buf != *b"gogenavromagic10" {
         return Err(SchemaRegistryError::MagicBytesError);
     }
@@ -49,8 +51,7 @@ pub fn get_schema_and_startidx(avro_bytes: &[u8]) -> Result<(Schema, usize), Sch
     // we skip the next 4 bytes (contains info about the number of records)
     cursor
         .read_exact(&mut [0u8; 4])
-        .map_err(SchemaRegistryError::CursorError)
-        .unwrap();
+        .map_err(SchemaRegistryError::CursorError)?;
 
     // we now have the start index of the data
     let start_idx = cursor.position();
