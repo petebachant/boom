@@ -43,7 +43,7 @@ pub fn get_schema_and_startidx(avro_bytes: &[u8]) -> Result<(Schema, usize), Sch
         .map_err(SchemaRegistryError::CursorError)
         .unwrap();
     if buf != *b"gogenavromagic10" {
-        panic!("Magic bytes error");
+        return Err(SchemaRegistryError::MagicBytesError);
     }
 
     // we skip the next 4 bytes (contains info about the number of records)
