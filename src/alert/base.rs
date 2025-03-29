@@ -20,6 +20,8 @@ pub enum SchemaRegistryError {
     ParsingError(#[source] reqwest::Error),
     #[error("could not find expected content in response")]
     InvalidResponse,
+    #[error("cursor error")]
+    CursorError(#[source] std::io::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
