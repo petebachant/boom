@@ -28,7 +28,7 @@ pub fn get_schema_and_startidx(avro_bytes: &[u8]) -> Result<(Schema, usize), Sch
     let mut buf = [0; 4];
     cursor.read_exact(&mut buf).unwrap();
     if buf != [b'O', b'b', b'j', 1u8] {
-        panic!("Magic bytes error");
+        return Err(SchemaRegistryError::MagicBytesError);
     }
 
     // This let's it skip through the bytes of the schema and other metadata
