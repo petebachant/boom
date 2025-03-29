@@ -91,6 +91,11 @@ pub async fn xmatch(
     let mut cursor = collection.aggregate(x_matches_pipeline).await.unwrap();
 
     let mut xmatch_docs = doc! {};
+    // pre add the catalogs + empty vec to the xmatch_docs
+    // this allows us to have a consistent output structure
+    for xmatch_config in xmatch_configs.iter() {
+        xmatch_docs.insert(&xmatch_config.catalog, mongodb::bson::Bson::Array(vec![]));
+    }
 
     while let Some(doc) = cursor.next().await {
         let doc = doc.unwrap();
