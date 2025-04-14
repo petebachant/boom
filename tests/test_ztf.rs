@@ -1,9 +1,13 @@
 use boom::{
     alert::{AlertWorker, ZtfAlertWorker},
     conf,
+    filter::{FilterWorker, ZtfFilterWorker},
     utils::{
         db::mongify,
-        testing::{drop_alert_from_collections, AlertRandomizerTrait, ZtfAlertRandomizer},
+        testing::{
+            drop_alert_from_collections, insert_test_ztf_filter, remove_test_ztf_filter,
+            AlertRandomizerTrait, ZtfAlertRandomizer,
+        },
     },
 };
 use mongodb::bson::doc;
@@ -219,4 +223,37 @@ async fn test_process_ztf_alert() {
     assert_eq!(fp_hists.len(), 10);
 
     drop_alert_from_collections(candid, "ZTF").await.unwrap();
+}
+
+#[tokio::test]
+async fn test_filter_ztf_alert() {
+    let mut alert_worker = ZtfAlertWorker::new(CONFIG_FILE).await.unwrap();
+
+    let (candid, object_id, _ra, _dec, bytes_content) = ZtfAlertRandomizer::default().get().await;
+    let result = alert_worker.process_alert(&bytes_content).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), candid);
+
+    let filter_id = insert_test_ztf_filter().await.unwrap();
+
+    let mut filter_worker = ZtfFilterWorker::new(CONFIG_FILE).await.unwrap();
+    let result = filter_worker
+        .process_alerts(&[format!("1,{}", candid)])
+        .await;
+
+    assert!(result.is_ok());
+    let alerts_output = result.unwrap();
+    assert_eq!(alerts_output.len(), 1);
+    let alert = &alerts_output[0];
+    assert_eq!(alert.candid, candid);
+    assert_eq!(alert.object_id, object_id);
+    assert_eq!(alert.photometry.len(), 11); // prv_candidates + prv_nondetections
+    let filter_passed = alert
+        .filters
+        .iter()
+        .find(|f| f.filter_id == filter_id)
+        .unwrap();
+    assert_eq!(filter_passed.annotations, "{\"mag_now\":14.91}");
+
+    remove_test_ztf_filter(filter_id).await.unwrap();
 }
