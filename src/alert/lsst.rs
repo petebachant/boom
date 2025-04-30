@@ -1,6 +1,7 @@
 use apache_avro::{from_avro_datum, from_value};
+use constcat::concat;
 use flare::Time;
-use mongodb::bson::doc;
+use mongodb::bson::{doc, Document};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
 use tracing::trace;
@@ -10,11 +11,15 @@ use crate::{
     conf,
     utils::{
         conversions::{flux2mag, fluxerr2diffmaglim, SNT, ZP_AB},
-        db::{cutout2bsonbinary, get_coordinates, mongify},
+        db::{create_index, cutout2bsonbinary, get_coordinates, mongify},
         spatial::xmatch,
     },
 };
 
+pub const STREAM_NAME: &str = "LSST";
+pub const ALERT_COLLECTION: &str = concat!(STREAM_NAME, "_alerts");
+pub const ALERT_AUX_COLLECTION: &str = concat!(STREAM_NAME, "_alerts_aux");
+pub const ALERT_CUTOUT_COLLECTION: &str = concat!(STREAM_NAME, "_alerts_cutouts");
 const _MAGIC_BYTE: u8 = 0;
 pub const LSST_SCHEMA_REGISTRY_URL: &str = "https://usdf-alert-schemas-dev.slac.stanford.edu";
 
@@ -635,9 +640,9 @@ pub struct LsstAlertWorker {
     schema_registry: SchemaRegistry,
     xmatch_configs: Vec<conf::CatalogXmatchConfig>,
     db: mongodb::Database,
-    alert_collection: mongodb::Collection<mongodb::bson::Document>,
-    alert_aux_collection: mongodb::Collection<mongodb::bson::Document>,
-    alert_cutout_collection: mongodb::Collection<mongodb::bson::Document>,
+    alert_collection: mongodb::Collection<Document>,
+    alert_aux_collection: mongodb::Collection<Document>,
+    alert_cutout_collection: mongodb::Collection<Document>,
 }
 
 impl LsstAlertWorker {
@@ -670,20 +675,25 @@ impl AlertWorker for LsstAlertWorker {
     type ObjectId = i64;
 
     async fn new(config_path: &str) -> Result<LsstAlertWorker, AlertWorkerError> {
-        let stream_name = "LSST".to_string();
-
         let config_file = conf::load_config(&config_path)?;
 
         let xmatch_configs = conf::build_xmatch_configs(&config_file, "LSST")?;
 
         let db: mongodb::Database = conf::build_db(&config_file).await?;
 
-        let alert_collection = db.collection(&format!("{}_alerts", stream_name));
-        let alert_aux_collection = db.collection(&format!("{}_alerts_aux", stream_name));
-        let alert_cutout_collection = db.collection(&format!("{}_alerts_cutouts", stream_name));
+        let alert_collection = db.collection(&ALERT_COLLECTION);
+        let alert_aux_collection = db.collection(&ALERT_AUX_COLLECTION);
+        let alert_cutout_collection = db.collection(&ALERT_CUTOUT_COLLECTION);
+
+        create_index(
+            &alert_aux_collection,
+            doc! {"coordinates.radec_geojson": "2dsphere"},
+            false,
+        )
+        .await?;
 
         let worker = LsstAlertWorker {
-            stream_name: stream_name.clone(),
+            stream_name: STREAM_NAME.to_string(),
             schema_registry: SchemaRegistry::new(LSST_SCHEMA_REGISTRY_URL),
             xmatch_configs,
             db,
@@ -711,9 +721,10 @@ impl AlertWorker for LsstAlertWorker {
         object_id: impl Into<Self::ObjectId> + Send,
         ra: f64,
         dec: f64,
-        prv_candidates_doc: &Vec<mongodb::bson::Document>,
-        prv_nondetections_doc: &Vec<mongodb::bson::Document>,
-        fp_hist_doc: &Vec<mongodb::bson::Document>,
+        prv_candidates_doc: &Vec<Document>,
+        prv_nondetections_doc: &Vec<Document>,
+        fp_hist_doc: &Vec<Document>,
+        _survey_matches: &Option<Document>,
         now: f64,
     ) -> Result<(), AlertError> {
         let start = std::time::Instant::now();
@@ -755,9 +766,10 @@ impl AlertWorker for LsstAlertWorker {
     async fn update_aux(
         self: &mut Self,
         object_id: impl Into<Self::ObjectId> + Send,
-        prv_candidates_doc: &Vec<mongodb::bson::Document>,
-        prv_nondetections_doc: &Vec<mongodb::bson::Document>,
-        fp_hist_doc: &Vec<mongodb::bson::Document>,
+        prv_candidates_doc: &Vec<Document>,
+        prv_nondetections_doc: &Vec<Document>,
+        fp_hist_doc: &Vec<Document>,
+        _survey_matches: &Option<Document>,
         now: f64,
     ) -> Result<(), AlertError> {
         let start = std::time::Instant::now();
@@ -885,6 +897,7 @@ impl AlertWorker for LsstAlertWorker {
                     &prv_candidates_doc,
                     &prv_nondetections_doc,
                     &fp_hist_doc,
+                    &None,
                     now,
                 )
                 .await;
@@ -894,6 +907,7 @@ impl AlertWorker for LsstAlertWorker {
                     &prv_candidates_doc,
                     &prv_nondetections_doc,
                     &fp_hist_doc,
+                    &None,
                     now,
                 )
                 .await?;
@@ -906,6 +920,7 @@ impl AlertWorker for LsstAlertWorker {
                 &prv_candidates_doc,
                 &prv_nondetections_doc,
                 &fp_hist_doc,
+                &None,
                 now,
             )
             .await?;

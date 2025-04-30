@@ -1,6 +1,7 @@
 use crate::utils::worker::WorkerCmd;
 use crate::{conf, utils::db::CreateIndexError};
 use apache_avro::Schema;
+use mongodb::bson::Document;
 use redis::AsyncCommands;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -75,8 +76,13 @@ pub enum AlertError {
     MissingFluxApertureError,
     #[error("missing mag zero point")]
     MissingMagZPSci,
+    #[error("error from mongodb")]
+    Mongodb(#[from] mongodb::error::Error),
+    #[error("value access error from bson")]
+    BsonValueAccess(#[from] mongodb::bson::document::ValueAccessError),
 }
 
+#[derive(Clone, Debug)]
 pub struct SchemaRegistry {
     client: reqwest::Client,
     cache: HashMap<String, Schema>,
@@ -217,17 +223,19 @@ pub trait AlertWorker {
         object_id: impl Into<Self::ObjectId> + Send,
         ra: f64,
         dec: f64,
-        prv_candidates_doc: &Vec<mongodb::bson::Document>,
-        prv_nondetections_doc: &Vec<mongodb::bson::Document>,
-        fp_hist_doc: &Vec<mongodb::bson::Document>,
+        prv_candidates_doc: &Vec<Document>,
+        prv_nondetections_doc: &Vec<Document>,
+        fp_hist_doc: &Vec<Document>,
+        survey_matches: &Option<Document>,
         now: f64,
     ) -> Result<(), AlertError>;
     async fn update_aux(
         self: &mut Self,
         object_id: impl Into<Self::ObjectId> + Send,
-        prv_candidates_doc: &Vec<mongodb::bson::Document>,
-        prv_nondetections_doc: &Vec<mongodb::bson::Document>,
-        fp_hist_doc: &Vec<mongodb::bson::Document>,
+        prv_candidates_doc: &Vec<Document>,
+        prv_nondetections_doc: &Vec<Document>,
+        fp_hist_doc: &Vec<Document>,
+        survey_matches: &Option<Document>,
         now: f64,
     ) -> Result<(), AlertError>;
     async fn process_alert(self: &mut Self, avro_bytes: &[u8]) -> Result<i64, AlertError>;
