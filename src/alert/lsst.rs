@@ -7,7 +7,7 @@ use serde_with::{serde_as, skip_serializing_none};
 use tracing::trace;
 
 use crate::{
-    alert::base::{AlertError, AlertWorker, AlertWorkerError, SchemaRegistry},
+    alert::base::{AlertError, AlertWorker, AlertWorkerError, SchemaRegistry, SchemaRegistryError},
     conf,
     utils::{
         conversions::{flux2mag, fluxerr2diffmaglim, SNT, ZP_AB},
@@ -652,7 +652,7 @@ impl LsstAlertWorker {
     ) -> Result<LsstAlert, AlertError> {
         let magic = avro_bytes[0];
         if magic != _MAGIC_BYTE {
-            return Err(AlertError::MagicBytesError);
+            Err(AlertError::MagicBytesError)?;
         }
         let schema_id =
             u32::from_be_bytes([avro_bytes[1], avro_bytes[2], avro_bytes[3], avro_bytes[4]]);
@@ -662,9 +662,9 @@ impl LsstAlertWorker {
             .await?;
 
         let mut slice = &avro_bytes[5..];
-        let value = from_avro_datum(&schema, &mut slice, None).map_err(AlertError::DecodeError)?;
+        let value = from_avro_datum(&schema, &mut slice, None)?;
 
-        let alert: LsstAlert = from_value::<LsstAlert>(&value).map_err(AlertError::DecodeError)?;
+        let alert: LsstAlert = from_value::<LsstAlert>(&value)?;
 
         Ok(alert)
     }
@@ -721,7 +721,7 @@ impl AlertWorker for LsstAlertWorker {
         now: f64,
     ) -> Result<(), AlertError> {
         let start = std::time::Instant::now();
-        let xmatches = xmatch(ra, dec, &self.xmatch_configs, &self.db).await;
+        let xmatches = xmatch(ra, dec, &self.xmatch_configs, &self.db).await?;
         trace!("Xmatch took: {:?}", start.elapsed());
 
         let start = std::time::Instant::now();
@@ -748,7 +748,7 @@ impl AlertWorker for LsstAlertWorker {
                 mongodb::error::ErrorKind::Write(mongodb::error::WriteFailure::WriteError(
                     write_error,
                 )) if write_error.code == 11000 => AlertError::AlertAuxExists,
-                _ => AlertError::InsertAlertAuxError(e),
+                _ => e.into(),
             })?;
 
         trace!("Inserting alert_aux: {:?}", start.elapsed());
@@ -780,8 +780,7 @@ impl AlertWorker for LsstAlertWorker {
 
         self.alert_aux_collection
             .update_one(doc! { "_id": object_id.into() }, update_doc)
-            .await
-            .map_err(AlertError::UpdateAuxAlertError)?;
+            .await?;
 
         trace!("Updating alert_aux: {:?}", start.elapsed());
 
@@ -826,7 +825,7 @@ impl AlertWorker for LsstAlertWorker {
                 mongodb::error::ErrorKind::Write(mongodb::error::WriteFailure::WriteError(
                     write_error,
                 )) if write_error.code == 11000 => AlertError::AlertExists,
-                _ => AlertError::InsertAlertError(e),
+                _ => e.into(),
             })?;
 
         trace!("Formatting & Inserting alert: {:?}", start.elapsed());
@@ -840,10 +839,7 @@ impl AlertWorker for LsstAlertWorker {
             "cutoutDifference": cutout2bsonbinary(alert.cutout_difference.ok_or(AlertError::MissingCutout)?),
         };
 
-        self.alert_cutout_collection
-            .insert_one(cutout_doc)
-            .await
-            .map_err(AlertError::InsertCutoutError)?;
+        self.alert_cutout_collection.insert_one(cutout_doc).await?;
 
         trace!("Formatting & Inserting cutout: {:?}", start.elapsed());
 
@@ -852,8 +848,7 @@ impl AlertWorker for LsstAlertWorker {
         let alert_aux_exists = self
             .alert_aux_collection
             .count_documents(doc! { "_id": &object_id })
-            .await
-            .map_err(AlertError::FindObjectIdError)?
+            .await?
             > 0;
 
         trace!("Checking if alert_aux exists: {:?}", start.elapsed());

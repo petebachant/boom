@@ -1,5 +1,8 @@
 use crate::utils::worker::WorkerCmd;
-use crate::{conf, utils::db::CreateIndexError};
+use crate::{
+    conf,
+    utils::{db::CreateIndexError, spatial::XmatchError},
+};
 use apache_avro::Schema;
 use mongodb::bson::Document;
 use redis::AsyncCommands;
@@ -10,20 +13,18 @@ use tracing::{error, info, trace, warn};
 
 #[derive(thiserror::Error, Debug)]
 pub enum SchemaRegistryError {
-    #[error("invalid schema")]
-    InvalidSchema(#[source] apache_avro::Error),
+    #[error("error from avro")]
+    Avro(#[from] apache_avro::Error),
+    #[error("error from reqwest")]
+    Reqwest(#[from] reqwest::Error),
+    #[error("error from std::io")]
+    Io(#[from] std::io::Error),
     #[error("invalid version")]
     InvalidVersion,
     #[error("invalid subject")]
     InvalidSubject,
-    #[error("connection error")]
-    ConnectionError(#[source] reqwest::Error),
-    #[error("parsing error")]
-    ParsingError(#[source] reqwest::Error),
     #[error("could not find expected content in response")]
     InvalidResponse,
-    #[error("cursor error")]
-    CursorError(#[source] std::io::Error),
     #[error("could not find avro magic bytes")]
     MagicBytesError,
     #[error("incorrect number of records in the avro file")]
@@ -34,26 +35,16 @@ pub enum SchemaRegistryError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum AlertError {
-    #[error("failed to decode alert")]
-    DecodeError(#[source] apache_avro::Error),
-    #[error("failed to find candid in the alert collection")]
-    FindCandIdError(#[source] mongodb::error::Error),
-    #[error("failed to insert into the alert collection")]
-    InsertAlertError(#[source] mongodb::error::Error),
-    #[error("failed to find objectid in the aux alert collection")]
-    FindObjectIdError(#[source] mongodb::error::Error),
-    #[error("failed to insert into the alert aux collection")]
-    InsertAlertAuxError(#[source] mongodb::error::Error),
-    #[error("failed to update the alert aux collection")]
-    UpdateAuxAlertError(#[source] mongodb::error::Error),
-    #[error("failed to insert into the alert cutout collection")]
-    InsertCutoutError(#[source] mongodb::error::Error),
-    #[error("failed to retrieve schema for the alert")]
-    SchemaError(#[source] apache_avro::Error),
-    #[error("avro magic bytes not found")]
-    MagicBytesError,
+    #[error("error from avro")]
+    Avro(#[from] apache_avro::Error),
+    #[error("value access error from bson")]
+    BsonValueAccess(#[from] mongodb::bson::document::ValueAccessError),
+    #[error("error from mongodb")]
+    Mongodb(#[from] mongodb::error::Error),
     #[error("schema registry error")]
     SchemaRegistryError(#[from] SchemaRegistryError),
+    #[error("error from xmatch")]
+    Xmatch(#[from] XmatchError),
     #[error("alert already exists")]
     AlertExists,
     #[error("alert aux already exists")]
@@ -62,10 +53,6 @@ pub enum AlertError {
     MissingObjectId,
     #[error("missing cutout")]
     MissingCutout,
-    #[error("missing alert in avro")]
-    EmptyAlertError,
-    #[error("failed to read avro")]
-    AvroReadError(#[source] apache_avro::Error),
     #[error("missing psf flux")]
     MissingFluxPSF,
     #[error("missing psf flux error")]
@@ -76,10 +63,8 @@ pub enum AlertError {
     MissingFluxApertureError,
     #[error("missing mag zero point")]
     MissingMagZPSci,
-    #[error("error from mongodb")]
-    Mongodb(#[from] mongodb::error::Error),
-    #[error("value access error from bson")]
-    BsonValueAccess(#[from] mongodb::bson::document::ValueAccessError),
+    #[error("could not find avro magic bytes")]
+    MagicBytesError,
 }
 
 #[derive(Clone, Debug)]
@@ -105,13 +90,9 @@ impl SchemaRegistry {
             .client
             .get(&format!("{}/subjects", &self.url))
             .send()
-            .await
-            .map_err(SchemaRegistryError::ConnectionError)?;
+            .await?;
 
-        let response = response
-            .json::<Vec<String>>()
-            .await
-            .map_err(SchemaRegistryError::ParsingError)?;
+        let response = response.json::<Vec<String>>().await?;
 
         Ok(response)
     }
@@ -127,13 +108,9 @@ impl SchemaRegistry {
             .client
             .get(&format!("{}/subjects/{}/versions", &self.url, subject))
             .send()
-            .await
-            .map_err(SchemaRegistryError::ConnectionError)?;
+            .await?;
 
-        let response = response
-            .json::<Vec<u32>>()
-            .await
-            .map_err(SchemaRegistryError::ParsingError)?;
+        let response = response.json::<Vec<u32>>().await?;
 
         Ok(response)
     }
@@ -155,19 +132,15 @@ impl SchemaRegistry {
                 &self.url, subject, version
             ))
             .send()
-            .await
-            .map_err(SchemaRegistryError::ConnectionError)?;
+            .await?;
 
-        let response = response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(SchemaRegistryError::ParsingError)?;
+        let response = response.json::<serde_json::Value>().await?;
 
         let schema_str = response["schema"]
             .as_str()
             .ok_or(SchemaRegistryError::InvalidResponse)?;
 
-        let schema = Schema::parse_str(schema_str).map_err(SchemaRegistryError::InvalidSchema)?;
+        let schema = Schema::parse_str(schema_str)?;
         Ok(schema)
     }
 
@@ -191,22 +164,10 @@ pub enum AlertWorkerError {
     LoadConfigError(#[from] conf::BoomConfigError),
     #[error("failed to create index")]
     CreateIndexError(#[from] CreateIndexError),
-    #[error("failed to connect to redis")]
-    ConnectRedisError(#[source] redis::RedisError),
-    #[error("failed to connect to mongodb")]
-    ConnectMongoError(#[source] mongodb::error::Error),
-    #[error("failed to get alert schema")]
-    GetAlertSchemaError,
-    #[error("failed to pop from the alert queue")]
-    PopAlertError(#[source] redis::RedisError),
+    #[error("error from redis")]
+    Redis(#[from] redis::RedisError),
     #[error("failed to get avro bytes from the alert queue")]
     GetAvroBytesError,
-    #[error("failed to push candid onto the candid queue")]
-    PushCandidError(#[source] redis::RedisError),
-    #[error("failed to remove alert from the alert queue")]
-    RemoveAlertError(#[source] redis::RedisError),
-    #[error("failed to push alert onto the alert queue")]
-    PushAlertError(#[source] redis::RedisError),
 }
 
 #[async_trait::async_trait]
@@ -281,10 +242,8 @@ pub async fn run_alert_worker<T: AlertWorker>(
             }
         }
         // retrieve candids from redis
-        let Some(mut value): Option<Vec<Vec<u8>>> = con
-            .rpoplpush(&input_queue_name, &temp_queue_name)
-            .await
-            .map_err(AlertWorkerError::PopAlertError)?
+        let Some(mut value): Option<Vec<Vec<u8>>> =
+            con.rpoplpush(&input_queue_name, &temp_queue_name).await?
         else {
             info!("ALERT WORKER {}: Queue is empty", id);
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -300,18 +259,15 @@ pub async fn run_alert_worker<T: AlertWorker>(
             Ok(candid) => {
                 // queue the candid for processing by the classifier
                 con.lpush::<&str, i64, isize>(&output_queue_name, candid)
-                    .await
-                    .map_err(AlertWorkerError::PushCandidError)?;
+                    .await?;
                 con.lrem::<&str, Vec<u8>, isize>(&temp_queue_name, 1, avro_bytes)
-                    .await
-                    .map_err(AlertWorkerError::RemoveAlertError)?;
+                    .await?;
             }
             Err(error) => match error {
                 AlertError::AlertExists => {
                     trace!("Alert already exists");
                     con.lrem::<&str, Vec<u8>, isize>(&temp_queue_name, 1, avro_bytes)
-                        .await
-                        .map_err(AlertWorkerError::RemoveAlertError)?;
+                        .await?;
                 }
                 _ => {
                     warn!(error = %error, "Error processing alert, skipping");
