@@ -5,9 +5,10 @@
 # ///
 """Convert TensorFlow Keras models to ONNX format.
 
-To run this script, export models to the ``models_input`` directory and call:
+To run this script, export models to the ``models_input`` directory
+(relative to this script) and call (from the root of the repository):
 
-    uv run scripts/convert2onnx.py
+    uv run scripts/convert2onnx/convert2onnx.py
 """
 
 import os
@@ -58,5 +59,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # Move into this directory to ensure relative paths work correctly
+    os.chdir(os.path.dirname(__file__))
     os.makedirs("models_output", exist_ok=True)
     main()
