@@ -13,7 +13,6 @@ To run this script, export models to the ``models_input`` directory and call:
 import os
 import glob
 
-import numpy as np
 import tensorflow
 import tf2onnx
 import onnx
