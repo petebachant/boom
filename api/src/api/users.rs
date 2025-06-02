@@ -1,5 +1,8 @@
-use actix_web::{HttpResponse, post, web};
+use crate::models::response;
+use actix_web::{HttpResponse, get, post, web};
+use futures::stream::StreamExt;
 use mongodb::{Collection, Database, bson::doc};
+use serde_json::to_value;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct UserPost {
@@ -66,5 +69,53 @@ pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> Ht
             return HttpResponse::InternalServerError()
                 .body(format!("failed to insert user into database. error: {}", e));
         }
+    }
+}
+
+#[derive(serde::Serialize)]
+struct User {
+    username: String,
+    email: String,
+    id: String,
+}
+
+#[get("/users")]
+pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
+    let user_collection: Collection<mongodb::bson::Document> = db.collection("users");
+    let users = user_collection.find(doc! {}).await;
+
+    match users {
+        Ok(mut cursor) => {
+            let mut user_list = Vec::new();
+            while let Some(user) = cursor.next().await {
+                match user {
+                    Ok(doc) => {
+                        // extract only what we want from the user document
+                        let user = User {
+                            username: doc
+                                .get_str("username")
+                                .map(|val| val.to_string())
+                                .unwrap_or_default(),
+                            email: doc
+                                .get_str("email")
+                                .map(|val| val.to_string())
+                                .unwrap_or_default(),
+                            id: doc
+                                .get_object_id("_id")
+                                .map(|id| id.to_string())
+                                .unwrap_or_default(),
+                        };
+                        // convert to JSON value
+                        user_list.push(to_value(user).unwrap());
+                    }
+                    Err(e) => {
+                        return HttpResponse::InternalServerError()
+                            .body(format!("error reading user: {}", e));
+                    }
+                }
+            }
+            response::ok("success", serde_json::Value::Array(user_list))
+        }
+        Err(e) => HttpResponse::InternalServerError().body(format!("failed to query users: {}", e)),
     }
 }
