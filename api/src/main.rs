@@ -1,13 +1,15 @@
 use boom_api::api;
 use boom_api::conf::AppConfig;
-use boom_api::models::response;
 
 use actix_web::{App, HttpServer, get, middleware::Logger, web};
 use mongodb::{Client, Database};
 
 #[get("/")]
 pub async fn get_health() -> HttpResponse {
-    response::ok("Greetings from BOOM!", serde_json::Value::Null)
+    HttpResponse::Ok().json(serde_json::json!({
+        "status": "success",
+        "message": "Greetings from BOOM!"
+    }))
 }
 
 #[actix_web::main]
