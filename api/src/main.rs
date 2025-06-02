@@ -1,7 +1,7 @@
 use boom_api::api;
 use boom_api::conf::AppConfig;
 
-use actix_web::{App, HttpServer, get, middleware::Logger, web};
+use actix_web::{App, HttpResponse, HttpServer, get, middleware::Logger, web};
 use mongodb::{Client, Database};
 
 #[get("/")]
@@ -41,6 +41,7 @@ async fn main() -> std::io::Result<()> {
             .service(api::alerts::get_object)
             .service(api::filters::post_filter)
             .service(api::filters::add_filter_version)
+            .service(api::users::post_user)
             .wrap(Logger::default())
     })
     .bind(("0.0.0.0", 4000))?
