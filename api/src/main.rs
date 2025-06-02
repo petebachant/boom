@@ -1,8 +1,14 @@
 use boom_api::api;
 use boom_api::conf::AppConfig;
+use boom_api::models::response;
 
-use actix_web::{App, HttpServer, middleware::Logger, web};
+use actix_web::{App, HttpServer, get, middleware::Logger, web};
 use mongodb::{Client, Database};
+
+#[get("/")]
+pub async fn get_health() -> HttpResponse {
+    response::ok("Greetings from BOOM!", serde_json::Value::Null)
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -24,6 +30,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(database.clone()))
+            .service(get_health)
             .service(api::query::get_info)
             .service(api::query::sample)
             .service(api::query::cone_search)
