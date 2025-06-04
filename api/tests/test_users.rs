@@ -1,0 +1,48 @@
+#[cfg(test)]
+mod tests {
+    use actix_web::http::StatusCode;
+    use actix_web::{App, test, web};
+    use boom_api::api;
+    use boom_api::conf::AppConfig;
+    use mongodb::{Client, Database};
+
+    async fn get_db() -> Database {
+        // connect to database with default config
+        let config = AppConfig::default().database;
+        let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| {
+            format!(
+                "mongodb://{}:{}@{}:{}",
+                config.username, config.password, config.host, config.port
+            )
+            .into()
+        });
+        let client = Client::with_uri_str(uri).await.expect("failed to connect");
+        client.database(&config.name)
+    }
+
+    #[actix_rt::test]
+    async fn test_get_users() {
+        let database: Database = get_db().await;
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(database.clone()))
+                .service(api::users::get_users), // Register the get_users service
+        )
+        .await;
+
+        let req = test::TestRequest::get().uri("/users").to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = test::read_body(resp).await;
+        let body_str = String::from_utf8_lossy(&body);
+
+        // parse response body JSON
+        let resp: serde_json::Value =
+            serde_json::from_str(&body_str).expect("failed to parse JSON");
+
+        assert_eq!(resp["status"], "success");
+    }
+}
