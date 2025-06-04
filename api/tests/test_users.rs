@@ -20,6 +20,7 @@ mod tests {
         client.database(&config.name)
     }
 
+    /// test GET /users
     #[actix_rt::test]
     async fn test_get_users() {
         let database: Database = get_db().await;
