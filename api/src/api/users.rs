@@ -1,8 +1,8 @@
 use crate::models::response;
-use actix_web::{HttpResponse, get, post, web};
+use actix_web::{HttpResponse, delete, get, post, web};
 use futures::stream::StreamExt;
 use mongodb::{Collection, Database, bson::doc};
-use serde_json::to_value;
+use serde_json::{json, to_value};
 
 #[derive(serde::Deserialize, Clone)]
 pub struct UserPost {
@@ -117,5 +117,29 @@ pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
             response::ok("success", serde_json::Value::Array(user_list))
         }
         Err(e) => HttpResponse::InternalServerError().body(format!("failed to query users: {}", e)),
+    }
+}
+
+#[delete("/users/{username}")]
+pub async fn delete_user(db: web::Data<Database>, path: web::Path<String>) -> HttpResponse {
+    // TODO: ensure the caller is authorized to delete this user
+    let username = path.into_inner();
+    let user_collection: Collection<mongodb::bson::Document> = db.collection("users");
+
+    match user_collection
+        .delete_one(doc! { "username": &username })
+        .await
+    {
+        Ok(delete_result) => {
+            if delete_result.deleted_count > 0 {
+                HttpResponse::Ok().json(json!({
+                    "status": "success",
+                    "message": format!("user '{}' deleted successfully", username)
+                }))
+            } else {
+                HttpResponse::NotFound().body("user not found")
+            }
+        }
+        Err(e) => HttpResponse::InternalServerError().body(format!("failed to delete user: {}", e)),
     }
 }

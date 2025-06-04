@@ -43,6 +43,7 @@ async fn main() -> std::io::Result<()> {
             .service(api::filters::add_filter_version)
             .service(api::users::post_user)
             .service(api::users::get_users)
+            .service(api::users::delete_user)
             .wrap(Logger::default())
     })
     .bind(("0.0.0.0", 4000))?
