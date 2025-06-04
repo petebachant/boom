@@ -28,7 +28,7 @@ mod tests {
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(database.clone()))
-                .service(api::users::get_users), // Register the get_users service
+                .service(api::users::get_users),
         )
         .await;
 
