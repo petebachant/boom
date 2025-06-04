@@ -13,8 +13,6 @@ pub struct UserPost {
 
 #[post("/users")]
 pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> HttpResponse {
-    let body = body.clone();
-
     // check that a user with this username/email does not already exist
     // TODO: drop usernames altogether and simply use email?
     let user_collection: Collection<mongodb::bson::Document> = db.collection("users");
