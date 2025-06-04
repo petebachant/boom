@@ -46,4 +46,41 @@ mod tests {
 
         assert_eq!(resp["status"], "success");
     }
+
+    /// test POST /users and DELETE /users/{username}
+    #[actix_rt::test]
+    async fn test_post_and_delete_user() {
+        let database: Database = get_db().await;
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(database.clone()))
+                .service(api::users::post_user)
+                .service(api::users::delete_user),
+        )
+        .await;
+
+        // create a new user with a UUID username
+        let random_name = uuid::Uuid::new_v4().to_string();
+
+        let new_user = serde_json::json!({
+            "username": random_name,
+            "email":
+            format!("{}@example.com", random_name),
+            "password": "password123"
+        });
+
+        let req = test::TestRequest::post()
+            .uri("/users")
+            .set_json(&new_user)
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // now delete this user
+        let delete_req = test::TestRequest::delete()
+            .uri(&format!("/users/{}", random_name))
+            .to_request();
+        let delete_resp = test::call_service(&app, delete_req).await;
+        assert_eq!(delete_resp.status(), StatusCode::OK);
+    }
 }
