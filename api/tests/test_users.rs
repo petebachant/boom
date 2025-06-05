@@ -33,7 +33,7 @@ mod tests {
         assert_eq!(resp["status"], "success");
     }
 
-    /// test POST /users and DELETE /users/{username}
+    /// Test POST /users and DELETE /users/{username}
     #[actix_rt::test]
     async fn test_post_and_delete_user() {
         let database: Database = get_default_db().await;
