@@ -5,31 +5,39 @@ use mongodb::{Collection, Database, bson::doc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(Deserialize, Clone)]
 pub struct UserPost {
     pub username: String,
     pub email: String,
     pub password: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UserInsert {
+    pub id: String,
+    pub username: String,
+    pub email: String,
+    pub password: String, // This will be hashed before insertion
+}
+
 #[post("/users")]
 pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> HttpResponse {
-    let user_collection: Collection<mongodb::bson::Document> = db.collection("users");
+    let user_collection: Collection<UserInsert> = db.collection("users");
 
     // Create a new user document
     // First, hash password
     // TODO: Permissions?
     let hashed_password =
         bcrypt::hash(&body.password, bcrypt::DEFAULT_COST).expect("failed to hash password");
-    let user_bson = doc! {
-        "id": uuid::Uuid::new_v4().to_string(),
-        "username": &body.username,
-        "email": &body.email,
-        "password": hashed_password,
+    let user_insert = UserInsert {
+        id: uuid::Uuid::new_v4().to_string(),
+        username: body.username.clone(),
+        email: body.email.clone(),
+        password: hashed_password,
     };
 
     // Save new user to database
-    match user_collection.insert_one(user_bson).await {
+    match user_collection.insert_one(user_insert).await {
         Ok(_) => HttpResponse::Ok().body("successfully created new user"),
         // Catch unique index constraint error
         Err(e) if e.to_string().contains("E11000 duplicate key error") => HttpResponse::Conflict()
