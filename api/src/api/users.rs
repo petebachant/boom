@@ -87,7 +87,7 @@ pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
 pub async fn delete_user(db: web::Data<Database>, path: web::Path<String>) -> HttpResponse {
     // TODO: Ensure the caller is authorized to delete this user
     let username = path.into_inner();
-    let user_collection: Collection<mongodb::bson::Document> = db.collection("users");
+    let user_collection: Collection<User> = db.collection("users");
 
     match user_collection
         .delete_one(doc! { "username": &username })
