@@ -62,6 +62,14 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
+        // Test that we can't post the same user again
+        let duplicate_req = test::TestRequest::post()
+            .uri("/users")
+            .set_json(&new_user)
+            .to_request();
+        let duplicate_resp = test::call_service(&app, duplicate_req).await;
+        assert_eq!(duplicate_resp.status(), StatusCode::CONFLICT);
+
         // Now delete this user
         let delete_req = test::TestRequest::delete()
             .uri(&format!("/users/{}", random_name))
