@@ -43,9 +43,9 @@ pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> Ht
 
 #[derive(serde::Serialize)]
 struct User {
+    id: String,
     username: String,
     email: String,
-    id: String,
 }
 
 #[get("/users")]
