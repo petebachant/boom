@@ -15,8 +15,16 @@ async fn db_from_config(config: DatabaseConfig) -> Database {
     let client = Client::with_uri_str(uri).await.expect("failed to connect");
     let db = client.database(&config.name);
     // Create a unique index for username and id in the users collection
-    let index_model = mongodb::IndexModel::builder()
-        .keys(doc! { "username": 1, "id": 1 })
+    let username_index = mongodb::IndexModel::builder()
+        .keys(doc! { "username": 1})
+        .options(
+            mongodb::options::IndexOptions::builder()
+                .unique(true)
+                .build(),
+        )
+        .build();
+    let user_id_index = mongodb::IndexModel::builder()
+        .keys(doc! { "id": 1})
         .options(
             mongodb::options::IndexOptions::builder()
                 .unique(true)
@@ -25,9 +33,14 @@ async fn db_from_config(config: DatabaseConfig) -> Database {
         .build();
     let _ = db
         .collection::<mongodb::bson::Document>("users")
-        .create_index(index_model)
+        .create_index(username_index)
         .await
-        .expect("failed to create index on users collection");
+        .expect("failed to create username index on users collection");
+    let _ = db
+        .collection::<mongodb::bson::Document>("users")
+        .create_index(user_id_index)
+        .await
+        .expect("failed to create id index on users collection");
     db
 }
 
