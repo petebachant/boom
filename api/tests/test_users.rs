@@ -61,6 +61,13 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
+        // Get the user out of the response body data so we know the ID
+        let body = test::read_body(resp).await;
+        let body_str = String::from_utf8_lossy(&body);
+        let resp: serde_json::Value =
+            serde_json::from_str(&body_str).expect("failed to parse JSON");
+        assert_eq!(resp["status"], "success");
+        let user_id = resp["data"]["id"].as_str().unwrap();
 
         // Test that we can't post the same user again
         let duplicate_req = test::TestRequest::post()
@@ -72,7 +79,7 @@ mod tests {
 
         // Now delete this user
         let delete_req = test::TestRequest::delete()
-            .uri(&format!("/users/{}", random_name))
+            .uri(&format!("/users/{}", user_id))
             .to_request();
         let delete_resp = test::call_service(&app, delete_req).await;
         assert_eq!(delete_resp.status(), StatusCode::OK);

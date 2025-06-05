@@ -92,26 +92,25 @@ pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
     }
 }
 
-#[delete("/users/{username}")]
+#[delete("/users/{user_id}")]
 pub async fn delete_user(db: web::Data<Database>, path: web::Path<String>) -> HttpResponse {
     // TODO: Ensure the caller is authorized to delete this user
-    let username = path.into_inner();
+    let user_id = path.into_inner();
     let user_collection: Collection<User> = db.collection("users");
 
-    match user_collection
-        .delete_one(doc! { "username": &username })
-        .await
-    {
+    match user_collection.delete_one(doc! { "id": &user_id }).await {
         Ok(delete_result) => {
             if delete_result.deleted_count > 0 {
                 HttpResponse::Ok().json(json!({
                     "status": "success",
-                    "message": format!("user '{}' deleted successfully", username)
+                    "message": format!("user ID '{}' deleted successfully", user_id)
                 }))
             } else {
                 HttpResponse::NotFound().body("user not found")
             }
         }
-        Err(e) => HttpResponse::InternalServerError().body(format!("failed to delete user: {}", e)),
+        Err(e) => {
+            HttpResponse::InternalServerError().body(format!("failed to delete user ID: {}", e))
+        }
     }
 }
