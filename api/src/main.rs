@@ -1,8 +1,7 @@
 use boom_api::api;
-use boom_api::conf::AppConfig;
+use boom_api::db::get_db;
 
 use actix_web::{App, HttpResponse, HttpServer, get, middleware::Logger, web};
-use mongodb::{Client, Database};
 
 #[get("/")]
 pub async fn get_health() -> HttpResponse {
@@ -14,17 +13,7 @@ pub async fn get_health() -> HttpResponse {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Read the config file
-    let config = AppConfig::from_default_path().database;
-    let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| {
-        format!(
-            "mongodb://{}:{}@{}:{}",
-            config.username, config.password, config.host, config.port
-        )
-        .into()
-    });
-    let client = Client::with_uri_str(uri).await.expect("failed to connect");
-    let database: Database = client.database(&config.name);
+    let database = get_db().await;
 
     // Initialize logging
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));

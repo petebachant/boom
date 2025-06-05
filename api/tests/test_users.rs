@@ -3,27 +3,13 @@ mod tests {
     use actix_web::http::StatusCode;
     use actix_web::{App, test, web};
     use boom_api::api;
-    use boom_api::conf::AppConfig;
-    use mongodb::{Client, Database};
-
-    async fn get_db() -> Database {
-        // connect to database with default config
-        let config = AppConfig::default().database;
-        let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| {
-            format!(
-                "mongodb://{}:{}@{}:{}",
-                config.username, config.password, config.host, config.port
-            )
-            .into()
-        });
-        let client = Client::with_uri_str(uri).await.expect("failed to connect");
-        client.database(&config.name)
-    }
+    use boom_api::db::get_default_db;
+    use mongodb::Database;
 
     /// test GET /users
     #[actix_rt::test]
     async fn test_get_users() {
-        let database: Database = get_db().await;
+        let database: Database = get_default_db().await;
 
         let app = test::init_service(
             App::new()
@@ -50,7 +36,7 @@ mod tests {
     /// test POST /users and DELETE /users/{username}
     #[actix_rt::test]
     async fn test_post_and_delete_user() {
-        let database: Database = get_db().await;
+        let database: Database = get_default_db().await;
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(database.clone()))
