@@ -2,7 +2,8 @@ use crate::models::response;
 use actix_web::{HttpResponse, delete, get, post, web};
 use futures::stream::StreamExt;
 use mongodb::{Collection, Database, bson::doc};
-use serde_json::{json, to_value};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct UserPost {
@@ -21,6 +22,7 @@ pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> Ht
     let hashed_password =
         bcrypt::hash(&body.password, bcrypt::DEFAULT_COST).expect("failed to hash password");
     let user_bson = doc! {
+        "id": uuid::Uuid::new_v4().to_string(),
         "username": &body.username,
         "email": &body.email,
         "password": hashed_password,
@@ -41,41 +43,25 @@ pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> Ht
     }
 }
 
-#[derive(serde::Serialize)]
-struct User {
-    id: String,
-    username: String,
-    email: String,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct User {
+    pub id: String,
+    pub username: String,
+    pub email: String,
 }
 
 #[get("/users")]
 pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
-    let user_collection: Collection<mongodb::bson::Document> = db.collection("users");
+    let user_collection: Collection<User> = db.collection("users");
     let users = user_collection.find(doc! {}).await;
 
     match users {
         Ok(mut cursor) => {
-            let mut user_list = Vec::new();
+            let mut user_list = Vec::<User>::new();
             while let Some(user) = cursor.next().await {
                 match user {
-                    Ok(doc) => {
-                        // extract only what we want from the user document
-                        let user = User {
-                            username: doc
-                                .get_str("username")
-                                .map(|val| val.to_string())
-                                .unwrap_or_default(),
-                            email: doc
-                                .get_str("email")
-                                .map(|val| val.to_string())
-                                .unwrap_or_default(),
-                            id: doc
-                                .get_object_id("_id")
-                                .map(|id| id.to_string())
-                                .unwrap_or_default(),
-                        };
-                        // convert to JSON value
-                        user_list.push(to_value(user).unwrap());
+                    Ok(user) => {
+                        user_list.push(user);
                     }
                     Err(e) => {
                         return HttpResponse::InternalServerError()
@@ -83,7 +69,7 @@ pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
                     }
                 }
             }
-            response::ok("success", serde_json::Value::Array(user_list))
+            response::ok("success", serde_json::to_value(&user_list).unwrap())
         }
         Err(e) => HttpResponse::InternalServerError().body(format!("failed to query users: {}", e)),
     }

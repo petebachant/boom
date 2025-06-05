@@ -14,9 +14,9 @@ async fn db_from_config(config: DatabaseConfig) -> Database {
     });
     let client = Client::with_uri_str(uri).await.expect("failed to connect");
     let db = client.database(&config.name);
-    // Create a unique index for username in the users collection
+    // Create a unique index for username and id in the users collection
     let index_model = mongodb::IndexModel::builder()
-        .keys(doc! { "username": 1 })
+        .keys(doc! { "username": 1, "id": 1 })
         .options(
             mongodb::options::IndexOptions::builder()
                 .unique(true)
