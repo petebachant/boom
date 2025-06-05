@@ -26,7 +26,7 @@ pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> Ht
         "password": hashed_password,
     };
 
-    // save new user to database
+    // Save new user to database
     match user_collection.insert_one(user_bson).await {
         Ok(_) => HttpResponse::Ok().body("successfully created new user"),
         // Catch unique index constraint error
@@ -91,7 +91,7 @@ pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
 
 #[delete("/users/{username}")]
 pub async fn delete_user(db: web::Data<Database>, path: web::Path<String>) -> HttpResponse {
-    // TODO: ensure the caller is authorized to delete this user
+    // TODO: Ensure the caller is authorized to delete this user
     let username = path.into_inner();
     let user_collection: Collection<mongodb::bson::Document> = db.collection("users");
 
