@@ -6,7 +6,7 @@ mod tests {
     use boom_api::db::get_default_db;
     use mongodb::Database;
 
-    /// test GET /users
+    /// Test GET /users
     #[actix_rt::test]
     async fn test_get_users() {
         let database: Database = get_default_db().await;
@@ -26,7 +26,7 @@ mod tests {
         let body = test::read_body(resp).await;
         let body_str = String::from_utf8_lossy(&body);
 
-        // parse response body JSON
+        // Parse response body JSON
         let resp: serde_json::Value =
             serde_json::from_str(&body_str).expect("failed to parse JSON");
 
@@ -45,7 +45,7 @@ mod tests {
         )
         .await;
 
-        // create a new user with a UUID username
+        // Create a new user with a UUID username
         let random_name = uuid::Uuid::new_v4().to_string();
 
         let new_user = serde_json::json!({
@@ -62,7 +62,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        // now delete this user
+        // Now delete this user
         let delete_req = test::TestRequest::delete()
             .uri(&format!("/users/{}", random_name))
             .to_request();
