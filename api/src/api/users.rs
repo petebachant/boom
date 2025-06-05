@@ -27,10 +27,11 @@ pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> Ht
     // Create a new user document
     // First, hash password
     // TODO: Permissions?
+    let user_id = uuid::Uuid::new_v4().to_string();
     let hashed_password =
         bcrypt::hash(&body.password, bcrypt::DEFAULT_COST).expect("failed to hash password");
     let user_insert = UserInsert {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: user_id.clone(),
         username: body.username.clone(),
         email: body.email.clone(),
         password: hashed_password,
@@ -38,7 +39,15 @@ pub async fn post_user(db: web::Data<Database>, body: web::Json<UserPost>) -> Ht
 
     // Save new user to database
     match user_collection.insert_one(user_insert).await {
-        Ok(_) => HttpResponse::Ok().body("successfully created new user"),
+        Ok(_) => response::ok(
+            "success",
+            serde_json::to_value(User {
+                id: user_id,
+                username: body.username.clone(),
+                email: body.email.clone(),
+            })
+            .unwrap(),
+        ),
         // Catch unique index constraint error
         Err(e) if e.to_string().contains("E11000 duplicate key error") => HttpResponse::Conflict()
             .body(format!(
