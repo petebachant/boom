@@ -66,6 +66,16 @@ BOOM runs on macOS and Linux. You'll need:
     cargo build --release
     ```
 
+### API
+
+To run the API server in development mode,
+first ensure `cargo-watch` is installed (`cargo install cargo-watch`),
+then call:
+
+```sh
+make api-dev
+```
+
 ## Running BOOM:
 
 ### Alert Production (not required for production use)
@@ -153,7 +163,7 @@ You can check the status of the tests in the "Actions" tab of the GitHub reposit
 
 ## Contributing
 
-We welcome contributions! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) (TBD) file for more information. 
+We welcome contributions! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) (TBD) file for more information.
 We rely on [GitHub issues](https://github.com/boom-astro/boom/issues) to track bugs and feature requests.
 
 ## Implementation details:
