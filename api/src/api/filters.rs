@@ -1,4 +1,5 @@
-use crate::models::filter_models::*;
+use crate::models::{filter_models::*, response};
+
 use actix_web::{HttpResponse, patch, post, web};
 use mongodb::{
     Collection, Database,
@@ -7,11 +8,12 @@ use mongodb::{
 use std::vec;
 use uuid::Uuid;
 
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 struct Filter {
     pub pipeline: Vec<mongodb::bson::Document>,
     pub permissions: Vec<i32>,
     pub catalog: String,
-    pub id: i32,
+    pub id: String,
 }
 
 fn build_test_pipeline(
@@ -119,7 +121,7 @@ fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb:
     let database_filter_bson = doc! {
         "_id": id,
         "group_id": 41, // consistent with other test filters
-        "filter_id": filter.id,
+        "id": filter.id,
         "catalog": filter.catalog,
         "permissions": filter.permissions,
         "active": true,
@@ -142,7 +144,7 @@ fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb:
 #[patch("/filters/{filter_id}")]
 pub async fn add_filter_version(
     db: web::Data<Database>,
-    filter_id: web::Path<i32>,
+    filter_id: web::Path<String>,
     body: web::Json<FilterSubmissionBody>,
 ) -> HttpResponse {
     let filter_id = filter_id.into_inner();
@@ -154,7 +156,7 @@ pub async fn add_filter_version(
         }
     };
     let collection: Collection<Document> = db.collection("filters");
-    let owner_filter = match collection.find_one(doc! {"filter_id": filter_id}).await {
+    let owner_filter = match collection.find_one(doc! {"id": filter_id.clone()}).await {
         Ok(Some(filter)) => filter,
         Ok(None) => {
             return HttpResponse::BadRequest()
@@ -163,7 +165,7 @@ pub async fn add_filter_version(
         Err(e) => {
             return HttpResponse::InternalServerError().body(format!(
                 "failed to find filter with id {}. error: {}",
-                filter_id, e
+                &filter_id, e
             ));
         }
     };
@@ -195,7 +197,7 @@ pub async fn add_filter_version(
     };
     let update_result = collection
         .update_one(
-            doc! {"filter_id": filter_id},
+            doc! {"id": filter_id.clone()},
             doc! {
                 "$push": {
                     "fv": new_pipeline_bson
@@ -207,7 +209,7 @@ pub async fn add_filter_version(
         Ok(_) => {
             return HttpResponse::Ok().body(format!(
                 "successfully added new pipeline version to filter id: {}",
-                filter_id
+                &filter_id
             ));
         }
         Err(e) => {
@@ -219,43 +221,26 @@ pub async fn add_filter_version(
     }
 }
 
+#[derive(serde::Deserialize, Clone)]
+pub struct FilterPost {
+    pub pipeline: Vec<mongodb::bson::Document>,
+    pub permissions: Vec<i32>,
+    pub catalog: String,
+}
+
 #[post("/filters")]
-pub async fn post_filter(
-    db: web::Data<Database>,
-    body: web::Json<FilterSubmissionBody>,
-) -> HttpResponse {
+pub async fn post_filter(db: web::Data<Database>, body: web::Json<FilterPost>) -> HttpResponse {
     let body = body.clone();
-    // grab user filter
-    let catalog = match body.catalog {
-        Some(catalog) => catalog,
-        None => {
-            return HttpResponse::BadRequest().body("catalog not provided");
-        }
-    };
-    let id = match body.id {
-        Some(id) => id,
-        None => {
-            return HttpResponse::BadRequest().body("filter id not provided");
-        }
-    };
-    let permissions = match body.permissions {
-        Some(permissions) => permissions,
-        None => {
-            return HttpResponse::BadRequest().body("permissions not provided");
-        }
-    };
-    let pipeline = match body.pipeline {
-        Some(pipeline) => pipeline,
-        None => {
-            return HttpResponse::BadRequest().body("pipeline not provided");
-        }
-    };
+
+    let catalog = body.catalog;
+    let permissions = body.permissions;
+    let pipeline = body.pipeline;
 
     // Test filter received from user
-    // create production version of filter
+    // Create production version of filter
     let test_pipeline = build_test_pipeline(catalog.clone(), permissions.clone(), pipeline.clone());
 
-    // perform test run to ensure no errors
+    // Test the filter to ensure it works
     match run_test_pipeline(db.clone(), catalog.clone(), test_pipeline).await {
         Ok(()) => {}
         Err(e) => {
@@ -266,15 +251,16 @@ pub async fn post_filter(
         }
     }
 
-    // save original filter to database
+    // Save filter to database
+    let filter_id = uuid::Uuid::new_v4().to_string();
     let filter_collection: Collection<mongodb::bson::Document> = db.collection("filters");
     let database_filter = Filter {
         pipeline,
         permissions,
         catalog,
-        id,
+        id: filter_id,
     };
-    let filter_bson = match build_filter_bson(database_filter) {
+    let filter_bson = match build_filter_bson(database_filter.clone()) {
         Ok(bson) => bson,
         Err(e) => {
             return HttpResponse::BadRequest()
@@ -283,7 +269,7 @@ pub async fn post_filter(
     };
     match filter_collection.insert_one(filter_bson).await {
         Ok(_) => {
-            return HttpResponse::Ok().body("successfully submitted filter to database");
+            return response::ok("success", serde_json::to_value(database_filter).unwrap());
         }
         Err(e) => {
             return HttpResponse::BadRequest().body(format!(
