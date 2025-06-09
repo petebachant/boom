@@ -1,6 +1,6 @@
-use boom_api::api;
 use boom_api::db::get_db;
 use boom_api::models::response;
+use boom_api::routes;
 
 use actix_web::{App, HttpResponse, HttpServer, get, middleware::Logger, web};
 
@@ -32,17 +32,17 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(database.clone()))
             .service(get_health)
             .service(get_db_info)
-            .service(api::query::get_info)
-            .service(api::query::sample)
-            .service(api::query::cone_search)
-            .service(api::query::count_documents)
-            .service(api::query::find)
-            .service(api::alerts::get_object)
-            .service(api::filters::post_filter)
-            .service(api::filters::add_filter_version)
-            .service(api::users::post_user)
-            .service(api::users::get_users)
-            .service(api::users::delete_user)
+            .service(routes::query::get_info)
+            .service(routes::query::sample)
+            .service(routes::query::cone_search)
+            .service(routes::query::count_documents)
+            .service(routes::query::find)
+            .service(routes::alerts::get_object)
+            .service(routes::filters::post_filter)
+            .service(routes::filters::add_filter_version)
+            .service(routes::users::post_user)
+            .service(routes::users::get_users)
+            .service(routes::users::delete_user)
             .wrap(Logger::default())
     })
     .bind(("0.0.0.0", 4000))?
