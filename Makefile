@@ -7,3 +7,8 @@ api-dev:
 format:
 	@echo "Formatting code"
 	pre-commit run --all
+
+.PHONY: test-api
+test-api:
+	@echo "Running API tests"
+	cargo test --package boom-api
