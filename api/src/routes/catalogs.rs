@@ -56,7 +56,7 @@ impl Default for DocumentCountQuery {
 
 /// Post a query to get the number of documents in a catalog
 #[post("/catalogs/{catalog_name}/queries/count")]
-pub async fn post_catalog_document_count_query(
+pub async fn post_catalog_count_query(
     db: web::Data<Database>,
     catalog_name: web::Path<String>,
     web::Json(query): web::Json<DocumentCountQuery>,
