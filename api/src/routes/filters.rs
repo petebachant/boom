@@ -6,6 +6,9 @@ use mongodb::{
     bson::{Document, doc},
 };
 use std::vec;
+use utoipa::openapi::RefOr;
+use utoipa::openapi::schema::{ObjectBuilder, Schema};
+use utoipa::{PartialSchema, ToSchema};
 use uuid::Uuid;
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
@@ -14,6 +17,43 @@ struct Filter {
     pub permissions: Vec<i32>,
     pub catalog: String,
     pub id: String,
+}
+impl ToSchema for Filter {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("Filter")
+    }
+}
+impl PartialSchema for Filter {
+    fn schema() -> RefOr<Schema> {
+        RefOr::T(Schema::Object(
+            ObjectBuilder::new()
+                .property(
+                    "pipeline",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "permissions",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "catalog",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::String)
+                            .build(),
+                    )),
+                )
+                .property(
+                    "id",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::String)
+                            .build(),
+                    )),
+                )
+                .build(),
+        ))
+    }
 }
 
 fn build_test_pipeline(
@@ -141,6 +181,16 @@ fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb:
     Ok(database_filter_bson)
 }
 
+#[utoipa::path(
+    patch,
+    path = "/filters/{filter_id}",
+    request_body = FilterSubmissionBody,
+    responses(
+        (status = 200, description = "Filter version added successfully"),
+        (status = 400, description = "Invalid filter submitted"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[patch("/filters/{filter_id}")]
 pub async fn add_filter_version(
     db: web::Data<Database>,
@@ -227,7 +277,46 @@ pub struct FilterPost {
     pub permissions: Vec<i32>,
     pub catalog: String,
 }
+impl ToSchema for FilterPost {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("FilterPost")
+    }
+}
+impl PartialSchema for FilterPost {
+    fn schema() -> RefOr<Schema> {
+        RefOr::T(Schema::Object(
+            ObjectBuilder::new()
+                .property(
+                    "pipeline",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "permissions",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "catalog",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::String)
+                            .build(),
+                    )),
+                )
+                .build(),
+        ))
+    }
+}
 
+#[utoipa::path(
+    post,
+    path = "/filters",
+    request_body = FilterPost,
+    responses(
+        (status = 200, description = "Filter created successfully", body = Filter),
+        (status = 400, description = "Invalid filter submitted"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[post("/filters")]
 pub async fn post_filter(db: web::Data<Database>, body: web::Json<FilterPost>) -> HttpResponse {
     let body = body.clone();
