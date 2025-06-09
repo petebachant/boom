@@ -4,6 +4,12 @@ use actix_web::{HttpResponse, get, post, web};
 use futures::StreamExt;
 use mongodb::{Database, bson::doc};
 
+/// Helper function to add a prefix to a catalog name to get its collection name
+fn get_collection_name(catalog_name: &str) -> String {
+    // Assuming catalogs are prefixed with "catalog_"
+    format!("catalog_{}", catalog_name.to_lowercase())
+}
+
 #[derive(serde::Deserialize)]
 struct CatalogsQueryParams {
     get_details: Option<bool>,
@@ -29,20 +35,24 @@ pub async fn get_catalogs(
             return response::internal_error(&format!("Error getting catalog info: {:?}", e));
         }
     };
-    // TODO: Catalogs should have a prefix like "catalog"
-    let mut catalog_names = collection_names
+    // Catalogs should have a prefix like "catalog_"
+    let collection_names = collection_names
         .iter()
-        .filter(|name| !name.starts_with("system."))
-        .filter(|name| !name.starts_with("users"))
+        .filter(|name| name.starts_with("catalog_"))
         .cloned()
         .collect::<Vec<String>>();
+    // Remove the prefix to get the catalog names
+    let mut catalog_names: Vec<String> = collection_names
+        .iter()
+        .map(|name| name.trim_start_matches("catalog_").to_string())
+        .collect();
     catalog_names.sort();
     let mut catalogs = Vec::new();
     if params.get_details.unwrap_or_default() {
         for catalog in catalog_names {
             match db
                 .run_command(doc! {
-                    "collstats": &catalog
+                    "collstats": get_collection_name(&catalog)
                 })
                 .await
             {
@@ -102,17 +112,12 @@ pub async fn post_catalog_count_query(
             return response::internal_error(&format!("Error getting catalog info: {:?}", e));
         }
     };
-    let catalog_names = collection_names
-        .iter()
-        .filter(|name| !name.starts_with("system."))
-        .cloned()
-        .collect::<Vec<String>>();
-    if !catalog_names.contains(&catalog_name) {
+    let collection_name = get_collection_name(&catalog_name);
+    if !collection_names.contains(&collection_name) {
         return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
     }
-    // Validate the query
     // Get the collection
-    let collection = db.collection::<mongodb::bson::Document>(&catalog_name);
+    let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Count documents with optional filter
     let count = match collection
         .count_documents(query.filter.unwrap_or_default())
@@ -145,16 +150,12 @@ pub async fn get_catalog_indexes(
             return response::internal_error(&format!("Error getting catalog info: {:?}", e));
         }
     };
-    let catalog_names = collection_names
-        .iter()
-        .filter(|name| !name.starts_with("system."))
-        .cloned()
-        .collect::<Vec<String>>();
-    if !catalog_names.contains(&catalog_name) {
+    let collection_name = get_collection_name(&catalog_name);
+    if !collection_names.contains(&collection_name) {
         return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
     }
     // Get the collection
-    let collection = db.collection::<mongodb::bson::Document>(&catalog_name);
+    let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Get index information
     match collection.list_indexes().await {
         Ok(indexes) => {
