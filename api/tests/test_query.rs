@@ -1,9 +1,9 @@
 use actix_web::web;
 #[cfg(test)]
 use boom_api::{
-    api::{query, query::build_options},
     db::get_default_db,
     models::query_models::{QueryKwargs, Unit},
+    routes::{query, query::build_options},
 };
 use mongodb::{
     Database,
