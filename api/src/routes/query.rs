@@ -155,74 +155,6 @@ pub async fn get_collection_sample(
     return Ok(Some(docs));
 }
 
-#[get("/query/info")]
-pub async fn get_info(db: web::Data<Database>, body: web::Json<InfoQueryBody>) -> HttpResponse {
-    let command = match body.command.clone() {
-        Some(c) => c,
-        None => {
-            return response::bad_request("command required for info query");
-        }
-    };
-    // get collection names in alphabetical order
-    if command == "catalog_names" {
-        let data = match get_catalog_names(db.clone()).await {
-            Ok(d) => d,
-            Err(e) => {
-                return response::internal_error(&format!("Error getting catalog names: {:?}", e));
-            }
-        };
-        return response::ok("Catalog names", serde_json::json!(data));
-    // get collection statistics for catalog(s)
-    } else if command == "catalog_info" {
-        let catalogs = match body.catalogs.clone() {
-            Some(c) => c,
-            None => {
-                return response::bad_request("catalog(s) required for catalog_info");
-            }
-        };
-        let data = match get_catalog_info(db.clone(), catalogs.clone()).await {
-            Ok(d) => d,
-            Err(e) => {
-                return response::internal_error(&format!("Error getting catalog info: {:?}", e));
-            }
-        };
-        return response::ok(
-            &format!("Catalog info for {:?}", catalogs),
-            serde_json::json!(data),
-        );
-    // get list of indexes on the collection
-    } else if command == "index_info" {
-        let catalogs = match body.catalogs.clone() {
-            Some(c) => c,
-            None => {
-                return response::bad_request("catalog(s) required for index_info");
-            }
-        };
-        let data = get_index_info(db.clone(), catalogs.clone()).await;
-        match data {
-            Ok(d) => {
-                return response::ok(
-                    &format!("Index info for {:?}", catalogs),
-                    serde_json::json!(d),
-                );
-            }
-            Err(e) => {
-                return response::internal_error(&format!("Error getting index info: {:?}", e));
-            }
-        }
-    } else if command == "db_info" {
-        let data = match get_db_info(db.clone()).await {
-            Ok(d) => d,
-            Err(e) => {
-                return response::internal_error(&format!("Error getting database info: {:?}", e));
-            }
-        };
-        return response::ok("Database info", serde_json::json!(data));
-    } else {
-        return response::bad_request(&format!("Unknown command: {}", command));
-    }
-}
-
 #[get("/query/sample")]
 pub async fn sample(db: web::Data<Database>, body: web::Json<QueryBody>) -> HttpResponse {
     let this_query = body.query.clone().unwrap_or_default();
@@ -242,29 +174,6 @@ pub async fn sample(db: web::Data<Database>, body: web::Json<QueryBody>) -> Http
         &format!("Sample of collection: {}", catalog),
         serde_json::json!(docs),
     );
-}
-
-#[get("/query/count_documents")]
-pub async fn count_documents(db: web::Data<Database>, body: web::Json<QueryBody>) -> HttpResponse {
-    let this_query = body.query.clone().unwrap_or_default();
-    let catalog = match this_query.catalog {
-        Some(c) => c,
-        None => return response::bad_request("catalog name required for count_documents"),
-    };
-    let collection: Collection<Document> = db.collection(&catalog);
-    let filter = this_query.filter.unwrap_or(doc! {});
-    let doc_count = collection.count_documents(filter).await;
-    match doc_count {
-        Err(e) => {
-            return response::internal_error(&format!("Error counting documents: {:?}", e));
-        }
-        Ok(x) => {
-            return response::ok(
-                &format!("Count of documents in collection: {}", catalog),
-                serde_json::json!(x),
-            );
-        }
-    }
 }
 
 #[get("/query/find")]
