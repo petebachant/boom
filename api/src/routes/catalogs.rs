@@ -33,7 +33,7 @@ pub async fn get_catalogs(db: web::Data<Database>) -> HttpResponse {
         };
     }
     // Serialize catalogs
-    let _ = match serde_json::to_value(&catalogs) {
+    match serde_json::to_value(&catalogs) {
         Ok(v) => return response::ok("success", v),
         Err(e) => {
             return response::internal_error(&format!("Error serializing catalog info: {:?}", e));
