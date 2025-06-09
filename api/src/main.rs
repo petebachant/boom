@@ -43,6 +43,7 @@ async fn main() -> std::io::Result<()> {
             .service(routes::users::delete_user)
             .service(routes::catalogs::get_catalogs)
             .service(routes::catalogs::post_catalog_count_query)
+            .service(routes::catalogs::post_catalog_find_query)
             .service(routes::catalogs::get_catalog_indexes)
             .service(routes::catalogs::get_catalog_sample)
             .wrap(Logger::default())

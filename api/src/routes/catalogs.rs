@@ -219,3 +219,86 @@ pub async fn get_catalog_sample(
         Err(e) => response::internal_error(&format!("Error getting sample: {:?}", e)),
     }
 }
+
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
+struct FindQuery {
+    filter: mongodb::bson::Document,
+    projection: Option<mongodb::bson::Document>,
+    limit: Option<i64>,
+    skip: Option<u64>,
+    sort: Option<mongodb::bson::Document>,
+    max_time_ms: Option<u64>,
+}
+
+impl Default for FindQuery {
+    fn default() -> Self {
+        FindQuery {
+            filter: doc! {},
+            projection: None,
+            limit: None,
+            skip: None,
+            sort: None,
+            max_time_ms: None,
+        }
+    }
+}
+
+impl FindQuery {
+    /// Convert to MongoDB Find options
+    fn to_find_options(&self) -> mongodb::options::FindOptions {
+        let mut options = mongodb::options::FindOptions::default();
+        if let Some(projection) = &self.projection {
+            options.projection = Some(projection.clone());
+        }
+        if let Some(limit) = self.limit {
+            options.limit = Some(limit);
+        }
+        if let Some(skip) = self.skip {
+            options.skip = Some(skip);
+        }
+        if let Some(sort) = &self.sort {
+            options.sort = Some(sort.clone());
+        }
+        if let Some(max_time_ms) = self.max_time_ms {
+            options.max_time = Some(std::time::Duration::from_millis(max_time_ms));
+        }
+        options
+    }
+}
+
+/// Post a query to find records in a data catalog
+#[post("/catalogs/{catalog_name}/queries/find")]
+pub async fn post_catalog_find_query(
+    db: web::Data<Database>,
+    catalog_name: web::Path<String>,
+    body: web::Json<FindQuery>,
+) -> HttpResponse {
+    // Validate catalog name
+    if catalog_name.is_empty() {
+        return response::bad_request("Catalog name cannot be empty");
+    }
+    let catalog_name = catalog_name.into_inner();
+    // Check that there is a collection with this catalog name
+    let collection_names = match db.list_collection_names().await {
+        Ok(c) => c,
+        Err(e) => {
+            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
+        }
+    };
+    let collection_name = get_collection_name(&catalog_name);
+    if !collection_names.contains(&collection_name) {
+        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
+    }
+    // Get the collection
+    let collection = db.collection::<mongodb::bson::Document>(&collection_name);
+    // Find documents with the provided filter
+    let filter = body.filter.clone();
+    let find_options = body.to_find_options();
+    match collection.find(filter).with_options(find_options).await {
+        Ok(cursor) => {
+            let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect::<Vec<_>>().await;
+            response::ok("success", serde_json::to_value(docs).unwrap())
+        }
+        Err(e) => response::internal_error(&format!("Error finding documents: {:?}", e)),
+    }
+}
