@@ -1,10 +1,26 @@
 use crate::models::response;
+
 use actix_web::{HttpResponse, get, post, web};
 use mongodb::{Database, bson::doc};
 
+#[derive(serde::Deserialize)]
+struct CatalogsQueryParams {
+    get_details: Option<bool>,
+}
+impl Default for CatalogsQueryParams {
+    fn default() -> Self {
+        CatalogsQueryParams {
+            get_details: Some(false),
+        }
+    }
+}
+
 /// Get a list of catalogs
 #[get("/catalogs")]
-pub async fn get_catalogs(db: web::Data<Database>) -> HttpResponse {
+pub async fn get_catalogs(
+    db: web::Data<Database>,
+    params: web::Query<CatalogsQueryParams>,
+) -> HttpResponse {
     // Get collection names in alphabetical order
     let collection_names = match db.list_collection_names().await {
         Ok(c) => c,
@@ -12,25 +28,37 @@ pub async fn get_catalogs(db: web::Data<Database>) -> HttpResponse {
             return response::internal_error(&format!("Error getting catalog info: {:?}", e));
         }
     };
+    // TODO: Catalogs should have a prefix like "catalog"
     let mut catalog_names = collection_names
         .iter()
         .filter(|name| !name.starts_with("system."))
+        .filter(|name| !name.starts_with("users"))
         .cloned()
         .collect::<Vec<String>>();
     catalog_names.sort();
     let mut catalogs = Vec::new();
-    for catalog in catalog_names {
-        match db
-            .run_command(doc! {
-                "collstats": catalog
-            })
-            .await
-        {
-            Ok(d) => catalogs.push(d),
-            Err(e) => {
-                return response::internal_error(&format!("Error getting catalog info: {:?}", e));
-            }
-        };
+    if params.get_details.unwrap_or_default() {
+        for catalog in catalog_names {
+            match db
+                .run_command(doc! {
+                    "collstats": &catalog
+                })
+                .await
+            {
+                Ok(d) => catalogs.push(doc! {"name": catalog, "details": d}),
+                Err(e) => {
+                    return response::internal_error(&format!(
+                        "Error getting catalog info: {:?}",
+                        e
+                    ));
+                }
+            };
+        }
+    } else {
+        // If no details requested, just return the names
+        for catalog in catalog_names {
+            catalogs.push(doc! { "name": catalog });
+        }
     }
     // Serialize catalogs
     match serde_json::to_value(&catalogs) {
