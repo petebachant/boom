@@ -58,6 +58,8 @@ pub async fn get_db_info(db: web::Data<mongodb::Database>) -> HttpResponse {
         routes::catalogs::get_catalogs,
         routes::catalogs::get_catalog_indexes,
         routes::catalogs::get_catalog_sample,
+        routes::filters::post_filter,
+        routes::filters::add_filter_version
     )
 )]
 struct ApiDoc;
