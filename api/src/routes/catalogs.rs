@@ -126,6 +126,7 @@ impl PartialSchema for CountQuery {
     }
 }
 
+/// Run a count query on a catalog
 #[utoipa::path(
     post,
     path = "/catalogs/{catalog_name}/queries/count",
@@ -177,7 +178,19 @@ pub async fn post_catalog_count_query(
     response::ok("success", serde_json::to_value(count).unwrap())
 }
 
-/// Get index information for a catalog
+/// Get a catalog's indexes
+#[utoipa::path(
+    get,
+    path = "/catalogs/{catalog_name}/indexes",
+    params(
+        ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'")
+    ),
+    responses(
+        (status = 200, description = "List of indexes in the catalog", body = Vec<serde_json::Value>),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[get("/catalogs/{catalog_name}/indexes")]
 pub async fn get_catalog_indexes(
     db: web::Data<Database>,
@@ -218,7 +231,6 @@ pub async fn get_catalog_indexes(
 struct SampleQuery {
     size: Option<u16>,
 }
-
 impl Default for SampleQuery {
     fn default() -> Self {
         SampleQuery { size: Some(1) }
@@ -226,6 +238,19 @@ impl Default for SampleQuery {
 }
 
 /// Get a sample of data from a catalog
+#[utoipa::path(
+    get,
+    path = "/catalogs/{catalog_name}/sample",
+    params(
+        ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'"),
+        ("size" = Option<u16>, Query, description = "Number of sample records to return")
+    ),
+    responses(
+        (status = 200, description = "Sample records from the catalog", body = Vec<serde_json::Value>),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[get("/catalogs/{catalog_name}/sample")]
 pub async fn get_catalog_sample(
     db: web::Data<Database>,
@@ -274,7 +299,6 @@ struct FindQuery {
     sort: Option<mongodb::bson::Document>,
     max_time_ms: Option<u64>,
 }
-
 impl FindQuery {
     /// Convert to MongoDB Find options
     fn to_find_options(&self) -> mongodb::options::FindOptions {
@@ -297,8 +321,70 @@ impl FindQuery {
         options
     }
 }
+impl ToSchema for FindQuery {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("FindQuery")
+    }
+}
+impl PartialSchema for FindQuery {
+    fn schema() -> RefOr<Schema> {
+        RefOr::T(Schema::Object(
+            ObjectBuilder::new()
+                .property(
+                    "filter",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "projection",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "limit",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::Integer)
+                            .build(),
+                    )),
+                )
+                .property(
+                    "skip",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::Integer)
+                            .build(),
+                    )),
+                )
+                .property(
+                    "sort",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "max_time_ms",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::Integer)
+                            .build(),
+                    )),
+                )
+                .build(),
+        ))
+    }
+}
 
-/// Post a query to find records in a data catalog
+/// Perform a find query on a catalog
+#[utoipa::path(
+    post,
+    path = "/catalogs/{catalog_name}/queries/find",
+    params(
+        ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'")
+    ),
+    request_body = FindQuery,
+    responses(
+        (status = 200, description = "Documents found in the catalog", body = serde_json::Value),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[post("/catalogs/{catalog_name}/queries/find")]
 pub async fn post_catalog_find_query(
     db: web::Data<Database>,
@@ -342,7 +428,6 @@ pub enum Unit {
     Arcseconds,
     Arcminutes,
 }
-
 impl fmt::Debug for Unit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -361,6 +446,26 @@ impl fmt::Debug for Unit {
         }
     }
 }
+impl ToSchema for Unit {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("Unit")
+    }
+}
+impl PartialSchema for Unit {
+    fn schema() -> RefOr<Schema> {
+        RefOr::T(Schema::Object(
+            ObjectBuilder::new()
+                .schema_type(utoipa::openapi::Type::String)
+                .enum_values(Some(vec![
+                    "Degrees".to_string(),
+                    "Radians".to_string(),
+                    "Arcseconds".to_string(),
+                    "Arcminutes".to_string(),
+                ]))
+                .build(),
+        ))
+    }
+}
 
 #[derive(serde::Deserialize, Clone)]
 struct ConeSearchQuery {
@@ -374,7 +479,6 @@ struct ConeSearchQuery {
     sort: Option<mongodb::bson::Document>,
     max_time_ms: Option<u64>,
 }
-
 impl ConeSearchQuery {
     /// Convert to MongoDB Find options
     fn to_find_options(&self) -> mongodb::options::FindOptions {
@@ -397,8 +501,83 @@ impl ConeSearchQuery {
         options
     }
 }
+impl ToSchema for ConeSearchQuery {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("ConeSearchQuery")
+    }
+}
+impl PartialSchema for ConeSearchQuery {
+    fn schema() -> RefOr<Schema> {
+        RefOr::T(Schema::Object(
+            ObjectBuilder::new()
+                .property(
+                    "filter",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "projection",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "radius",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::Number)
+                            .build(),
+                    )),
+                )
+                .property("unit", RefOr::<Schema>::from(Unit::schema()))
+                .property(
+                    "object_coordinates",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "limit",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::Integer)
+                            .build(),
+                    )),
+                )
+                .property(
+                    "skip",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::Integer)
+                            .build(),
+                    )),
+                )
+                .property(
+                    "sort",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .property(
+                    "max_time_ms",
+                    RefOr::T(Schema::Object(
+                        ObjectBuilder::new()
+                            .schema_type(utoipa::openapi::Type::Integer)
+                            .build(),
+                    )),
+                )
+                .build(),
+        ))
+    }
+}
 
-/// Post a query to do a cone search on a data catalog
+/// Perform a cone search query on a catalog
+#[utoipa::path(
+    post,
+    path = "/catalogs/{catalog_name}/queries/cone-search",
+    params(
+        ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'")
+    ),
+    request_body = ConeSearchQuery,
+    responses(
+        (status = 200, description = "Cone search results", body = serde_json::Value),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[post("/catalogs/{catalog_name}/queries/cone-search")]
 pub async fn post_catalog_cone_search_query(
     db: web::Data<Database>,
