@@ -3,7 +3,16 @@ use boom_api::models::response;
 use boom_api::routes;
 
 use actix_web::{App, HttpResponse, HttpServer, get, middleware::Logger, web};
+use utoipa::OpenApi;
+use utoipa_scalar::{Scalar, Servable};
 
+#[utoipa::path(
+    get,
+    path = "/",
+    responses(
+        (status = 200, description = "Health check successful")
+    )
+)]
 #[get("/")]
 pub async fn get_health() -> HttpResponse {
     HttpResponse::Ok().json(serde_json::json!({
@@ -20,6 +29,17 @@ pub async fn get_db_info(db: web::Data<mongodb::Database>) -> HttpResponse {
     }
 }
 
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "BOOM API",
+        version = "0.1.0",
+        description = "An HTTP REST interface to BOOM."
+    ),
+    paths(get_health)
+)]
+struct ApiDoc;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let database = get_db().await;
@@ -27,9 +47,13 @@ async fn main() -> std::io::Result<()> {
     // Initialize logging
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
+    // Create API docs from OpenAPI spec
+    let api_doc = ApiDoc::openapi();
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(database.clone()))
+            .service(Scalar::with_url("/docs", api_doc.clone()))
             .service(get_health)
             .service(get_db_info)
             .service(routes::alerts::get_object)
