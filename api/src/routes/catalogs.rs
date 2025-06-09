@@ -6,6 +6,9 @@ use futures::TryStreamExt;
 use mongodb::{Database, bson::doc};
 use std::collections::HashMap;
 use std::fmt;
+use utoipa::openapi::RefOr;
+use utoipa::openapi::schema::{ObjectBuilder, Schema};
+use utoipa::{PartialSchema, ToSchema};
 
 /// Helper function to add a prefix to a catalog name to get its collection name
 fn get_collection_name(catalog_name: &str) -> String {
@@ -26,6 +29,17 @@ impl Default for CatalogsQueryParams {
 }
 
 /// Get a list of catalogs
+#[utoipa::path(
+    get,
+    path = "/catalogs",
+    params(
+        ("get_details" = Option<bool>, Query, description = "Whether to include detailed information about each catalog")
+    ),
+    responses(
+        (status = 200, description = "List of catalogs", body = Vec<serde_json::Value>),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[get("/catalogs")]
 pub async fn get_catalogs(
     db: web::Data<Database>,
@@ -87,7 +101,6 @@ pub async fn get_catalogs(
 struct CountQuery {
     filter: Option<mongodb::bson::Document>,
 }
-
 impl Default for CountQuery {
     fn default() -> Self {
         CountQuery {
@@ -95,8 +108,37 @@ impl Default for CountQuery {
         }
     }
 }
+impl ToSchema for CountQuery {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("CountQuery")
+    }
+}
+impl PartialSchema for CountQuery {
+    fn schema() -> RefOr<Schema> {
+        RefOr::T(Schema::Object(
+            ObjectBuilder::new()
+                .property(
+                    "filter",
+                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
+                )
+                .build(),
+        ))
+    }
+}
 
-/// Post a query to get the number of documents in a catalog
+#[utoipa::path(
+    post,
+    path = "/catalogs/{catalog_name}/queries/count",
+    params(
+        ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'"),
+    ),
+    request_body = CountQuery,
+    responses(
+        (status = 200, description = "Count of documents in the catalog", body = serde_json::Value),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[post("/catalogs/{catalog_name}/queries/count")]
 pub async fn post_catalog_count_query(
     db: web::Data<Database>,

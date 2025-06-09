@@ -50,6 +50,7 @@ pub async fn get_db_info(db: web::Data<mongodb::Database>) -> HttpResponse {
         routes::users::get_users,
         routes::users::delete_user,
         routes::alerts::get_object,
+        routes::catalogs::post_catalog_count_query
     )
 )]
 struct ApiDoc;
