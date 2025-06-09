@@ -78,6 +78,14 @@ pub struct User {
     pub email: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/users",
+    responses(
+        (status = 200, description = "Users retrieved successfully", body = [User]),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[get("/users")]
 pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
     let user_collection: Collection<User> = db.collection("users");
@@ -103,6 +111,15 @@ pub async fn get_users(db: web::Data<Database>) -> HttpResponse {
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/users/{user_id}",
+    responses(
+        (status = 200, description = "User deleted successfully"),
+        (status = 404, description = "User not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[delete("/users/{user_id}")]
 pub async fn delete_user(db: web::Data<Database>, path: web::Path<String>) -> HttpResponse {
     // TODO: Ensure the caller is authorized to delete this user
