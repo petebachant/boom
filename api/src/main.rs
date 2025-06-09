@@ -1,5 +1,6 @@
 use boom_api::api;
 use boom_api::db::get_db;
+use boom_api::models::response;
 
 use actix_web::{App, HttpResponse, HttpServer, get, middleware::Logger, web};
 
@@ -9,6 +10,14 @@ pub async fn get_health() -> HttpResponse {
         "status": "success",
         "message": "Greetings from BOOM!"
     }))
+}
+
+#[get("/db-info")]
+pub async fn get_db_info(db: web::Data<mongodb::Database>) -> HttpResponse {
+    match db.run_command(mongodb::bson::doc! { "dbstats": 1 }).await {
+        Ok(stats) => response::ok("success", serde_json::to_value(stats).unwrap()),
+        Err(e) => response::internal_error(&format!("Error getting database info: {:?}", e)),
+    }
 }
 
 #[actix_web::main]
@@ -22,6 +31,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(database.clone()))
             .service(get_health)
+            .service(get_db_info)
             .service(api::query::get_info)
             .service(api::query::sample)
             .service(api::query::cone_search)
