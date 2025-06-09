@@ -6,6 +6,7 @@ use actix_web::{App, HttpResponse, HttpServer, get, middleware::Logger, web};
 use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable};
 
+/// Check the health of the API server
 #[utoipa::path(
     get,
     path = "/",
@@ -21,6 +22,7 @@ pub async fn get_health() -> HttpResponse {
     }))
 }
 
+/// Get information about the database
 #[utoipa::path(
     get,
     path = "/db-info",
