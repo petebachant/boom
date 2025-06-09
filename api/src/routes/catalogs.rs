@@ -233,19 +233,6 @@ struct FindQuery {
     max_time_ms: Option<u64>,
 }
 
-impl Default for FindQuery {
-    fn default() -> Self {
-        FindQuery {
-            filter: doc! {},
-            projection: None,
-            limit: None,
-            skip: None,
-            sort: None,
-            max_time_ms: None,
-        }
-    }
-}
-
 impl FindQuery {
     /// Convert to MongoDB Find options
     fn to_find_options(&self) -> mongodb::options::FindOptions {
