@@ -70,13 +70,13 @@ pub async fn get_catalogs(
 }
 
 #[derive(serde::Deserialize, Clone)]
-struct DocumentCountQuery {
+struct CountQuery {
     filter: Option<mongodb::bson::Document>,
 }
 
-impl Default for DocumentCountQuery {
+impl Default for CountQuery {
     fn default() -> Self {
-        DocumentCountQuery {
+        CountQuery {
             filter: Some(doc! {}),
         }
     }
@@ -87,7 +87,7 @@ impl Default for DocumentCountQuery {
 pub async fn post_catalog_count_query(
     db: web::Data<Database>,
     catalog_name: web::Path<String>,
-    web::Json(query): web::Json<DocumentCountQuery>,
+    web::Json(query): web::Json<CountQuery>,
 ) -> HttpResponse {
     // Validate catalog name
     if catalog_name.is_empty() {
