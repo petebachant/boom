@@ -21,6 +21,13 @@ pub async fn get_health() -> HttpResponse {
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/db-info",
+    responses(
+        (status = 200, description = "Database information retrieved successfully"),
+    )
+)]
 #[get("/db-info")]
 pub async fn get_db_info(db: web::Data<mongodb::Database>) -> HttpResponse {
     match db.run_command(mongodb::bson::doc! { "dbstats": 1 }).await {
@@ -36,7 +43,7 @@ pub async fn get_db_info(db: web::Data<mongodb::Database>) -> HttpResponse {
         version = "0.1.0",
         description = "An HTTP REST interface to BOOM."
     ),
-    paths(get_health)
+    paths(get_health, get_db_info,)
 )]
 struct ApiDoc;
 
