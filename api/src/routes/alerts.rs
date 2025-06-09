@@ -6,6 +6,19 @@ use mongodb::{
     bson::{Document, doc},
 };
 
+#[utoipa::path(
+    get,
+    path = "/alerts/{survey_name}/get_object/{object_id}",
+    params(
+        ("survey_name" = String, Path, description = "Name of the survey (e.g., 'ZTF')"),
+        ("object_id" = String, Path, description = "ID of the object to retrieve")
+    ),
+    responses(
+        (status = 200, description = "Object found", body = serde_json::Value),
+        (status = 404, description = "Object not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 #[get("/alerts/{survey_name}/get_object/{object_id}")]
 pub async fn get_object(
     db: web::Data<Database>,
