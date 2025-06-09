@@ -1,6 +1,7 @@
 use crate::models::response;
 
 use actix_web::{HttpResponse, get, post, web};
+use futures::StreamExt;
 use mongodb::{Database, bson::doc};
 
 #[derive(serde::Deserialize)]
@@ -124,4 +125,45 @@ pub async fn post_catalog_count_query(
     };
     // Return the count
     response::ok("success", serde_json::to_value(count).unwrap())
+}
+
+/// Get index information for a catalog
+#[get("/catalogs/{catalog_name}/indexes")]
+pub async fn get_catalog_indexes(
+    db: web::Data<Database>,
+    catalog_name: web::Path<String>,
+) -> HttpResponse {
+    // Validate catalog name
+    if catalog_name.is_empty() {
+        return response::bad_request("Catalog name cannot be empty");
+    }
+    let catalog_name = catalog_name.into_inner();
+    // Check that there is a collection with this catalog name
+    let collection_names = match db.list_collection_names().await {
+        Ok(c) => c,
+        Err(e) => {
+            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
+        }
+    };
+    let catalog_names = collection_names
+        .iter()
+        .filter(|name| !name.starts_with("system."))
+        .cloned()
+        .collect::<Vec<String>>();
+    if !catalog_names.contains(&catalog_name) {
+        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
+    }
+    // Get the collection
+    let collection = db.collection::<mongodb::bson::Document>(&catalog_name);
+    // Get index information
+    match collection.list_indexes().await {
+        Ok(indexes) => {
+            let indexes: Vec<_> = indexes
+                .map(|index| index.unwrap())
+                .collect::<Vec<_>>()
+                .await;
+            response::ok("success", serde_json::to_value(indexes).unwrap())
+        }
+        Err(e) => response::internal_error(&format!("Error getting indexes: {:?}", e)),
+    }
 }
