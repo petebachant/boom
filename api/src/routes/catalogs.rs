@@ -168,3 +168,54 @@ pub async fn get_catalog_indexes(
         Err(e) => response::internal_error(&format!("Error getting indexes: {:?}", e)),
     }
 }
+
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
+struct SampleQuery {
+    size: Option<u16>,
+}
+
+impl Default for SampleQuery {
+    fn default() -> Self {
+        SampleQuery { size: Some(1) }
+    }
+}
+
+/// Get a sample of data from a catalog
+#[get("/catalogs/{catalog_name}/sample")]
+pub async fn get_catalog_sample(
+    db: web::Data<Database>,
+    catalog_name: web::Path<String>,
+    params: web::Query<SampleQuery>,
+) -> HttpResponse {
+    // Validate catalog name
+    if catalog_name.is_empty() {
+        return response::bad_request("Catalog name cannot be empty");
+    }
+    let catalog_name = catalog_name.into_inner();
+    // Check that there is a collection with this catalog name
+    let collection_names = match db.list_collection_names().await {
+        Ok(c) => c,
+        Err(e) => {
+            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
+        }
+    };
+    let collection_name = get_collection_name(&catalog_name);
+    if !collection_names.contains(&collection_name) {
+        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
+    }
+    // Get the collection
+    let collection = db.collection::<mongodb::bson::Document>(&collection_name);
+    // Get a sample of documents
+    match collection
+        .aggregate(vec![
+            doc! { "$sample": { "size": params.size.unwrap_or_default() as i32 } },
+        ])
+        .await
+    {
+        Ok(cursor) => {
+            let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect::<Vec<_>>().await;
+            response::ok("success", serde_json::to_value(docs).unwrap())
+        }
+        Err(e) => response::internal_error(&format!("Error getting sample: {:?}", e)),
+    }
+}
