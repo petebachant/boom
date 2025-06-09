@@ -43,7 +43,7 @@ pub async fn get_db_info(db: web::Data<mongodb::Database>) -> HttpResponse {
         version = "0.1.0",
         description = "An HTTP REST interface to BOOM."
     ),
-    paths(get_health, get_db_info,)
+    paths(get_health, get_db_info, routes::users::post_user)
 )]
 struct ApiDoc;
 
