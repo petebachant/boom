@@ -43,6 +43,8 @@ async fn main() -> std::io::Result<()> {
             .service(routes::users::post_user)
             .service(routes::users::get_users)
             .service(routes::users::delete_user)
+            .service(routes::catalogs::get_catalogs)
+            .service(routes::catalogs::post_catalog_count_query)
             .wrap(Logger::default())
     })
     .bind(("0.0.0.0", 4000))?
