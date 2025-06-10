@@ -10,10 +10,13 @@ use utoipa::openapi::RefOr;
 use utoipa::openapi::schema::{ObjectBuilder, Schema};
 use utoipa::{PartialSchema, ToSchema};
 
-/// Helper function to add a prefix to a catalog name to get its collection name
+/// Protected names for operational data collections, which should not be used
+/// for analytical data catalogs
+const PROTECTED_COLLECTION_NAMES: [&str; 2] = ["users", "filters"];
+
+/// Convert a catalog name to a collection name
 fn get_collection_name(catalog_name: &str) -> String {
-    // Assuming catalogs are prefixed with "catalog_"
-    format!("catalog_{}", catalog_name.to_lowercase())
+    catalog_name.to_string()
 }
 
 #[derive(serde::Deserialize)]
@@ -52,11 +55,12 @@ pub async fn get_catalogs(
             return response::internal_error(&format!("Error getting catalog info: {:?}", e));
         }
     };
-    // Catalogs should have a prefix like "catalog_"
+    // Catalogs can't be part of the protected names and can't start with "system."
     let collection_names = collection_names
-        .iter()
-        .filter(|name| name.starts_with("catalog_"))
-        .cloned()
+        .into_iter()
+        .filter(|name| {
+            !PROTECTED_COLLECTION_NAMES.contains(&name.as_str()) && !name.starts_with("system.")
+        })
         .collect::<Vec<String>>();
     // Remove the prefix to get the catalog names
     let mut catalog_names: Vec<String> = collection_names
