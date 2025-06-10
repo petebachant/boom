@@ -399,16 +399,16 @@ impl PartialSchema for Unit {
     }
 }
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(serde::Deserialize, Clone, ToSchema)]
 struct ConeSearchQuery {
-    filter: mongodb::bson::Document,
-    projection: Option<mongodb::bson::Document>,
+    filter: serde_json::Value,
+    projection: Option<serde_json::Value>,
     radius: f64,
     unit: Unit,
     object_coordinates: HashMap<String, [f64; 2]>, // Map of catalog name to coordinates [RA, Dec]
     limit: Option<i64>,
     skip: Option<u64>,
-    sort: Option<mongodb::bson::Document>,
+    sort: Option<serde_json::Value>,
     max_time_ms: Option<u64>,
 }
 impl ConeSearchQuery {
@@ -416,7 +416,7 @@ impl ConeSearchQuery {
     fn to_find_options(&self) -> mongodb::options::FindOptions {
         let mut options = mongodb::options::FindOptions::default();
         if let Some(projection) = &self.projection {
-            options.projection = Some(projection.clone());
+            options.projection = Some(json_to_document(&projection));
         }
         if let Some(limit) = self.limit {
             options.limit = Some(limit);
@@ -425,74 +425,12 @@ impl ConeSearchQuery {
             options.skip = Some(skip);
         }
         if let Some(sort) = &self.sort {
-            options.sort = Some(sort.clone());
+            options.sort = Some(json_to_document(&sort));
         }
         if let Some(max_time_ms) = self.max_time_ms {
             options.max_time = Some(std::time::Duration::from_millis(max_time_ms));
         }
         options
-    }
-}
-impl ToSchema for ConeSearchQuery {
-    fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("ConeSearchQuery")
-    }
-}
-impl PartialSchema for ConeSearchQuery {
-    fn schema() -> RefOr<Schema> {
-        RefOr::T(Schema::Object(
-            ObjectBuilder::new()
-                .property(
-                    "filter",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "projection",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "radius",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::Number)
-                            .build(),
-                    )),
-                )
-                .property("unit", RefOr::<Schema>::from(Unit::schema()))
-                .property(
-                    "object_coordinates",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "limit",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::Integer)
-                            .build(),
-                    )),
-                )
-                .property(
-                    "skip",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::Integer)
-                            .build(),
-                    )),
-                )
-                .property(
-                    "sort",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "max_time_ms",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::Integer)
-                            .build(),
-                    )),
-                )
-                .build(),
-        ))
     }
 }
 
@@ -548,7 +486,7 @@ pub async fn post_catalog_cone_search_query(
     let object_coordinates = &body.object_coordinates;
     let mut docs: HashMap<String, Vec<mongodb::bson::Document>> = HashMap::new();
     for (object_name, radec) in object_coordinates {
-        let mut filter = body.filter.clone();
+        let mut filter = json_to_document(&body.filter);
         let ra = radec[0] - 180.0;
         let dec = radec[1];
         let center_sphere = doc! {
