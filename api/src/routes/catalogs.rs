@@ -1,4 +1,5 @@
 use crate::models::response;
+use crate::mongodb::json_to_document;
 
 use actix_web::{HttpResponse, get, post, web};
 use futures::StreamExt;
@@ -101,33 +102,9 @@ pub async fn get_catalogs(
     };
 }
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(serde::Deserialize, Clone, ToSchema)]
 struct CountQuery {
-    filter: Option<mongodb::bson::Document>,
-}
-impl Default for CountQuery {
-    fn default() -> Self {
-        CountQuery {
-            filter: Some(doc! {}),
-        }
-    }
-}
-impl ToSchema for CountQuery {
-    fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("CountQuery")
-    }
-}
-impl PartialSchema for CountQuery {
-    fn schema() -> RefOr<Schema> {
-        RefOr::T(Schema::Object(
-            ObjectBuilder::new()
-                .property(
-                    "filter",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .build(),
-        ))
-    }
+    filter: Option<serde_json::Value>,
 }
 
 /// Run a count query on a catalog
@@ -170,7 +147,7 @@ pub async fn post_catalog_count_query(
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Count documents with optional filter
     let count = match collection
-        .count_documents(query.filter.unwrap_or_default())
+        .count_documents(json_to_document(&query.filter.unwrap_or_default()))
         .await
     {
         Ok(c) => c,
