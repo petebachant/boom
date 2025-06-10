@@ -271,13 +271,13 @@ pub async fn get_catalog_sample(
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, ToSchema)]
 struct FindQuery {
-    filter: mongodb::bson::Document,
-    projection: Option<mongodb::bson::Document>,
+    filter: serde_json::Value,
+    projection: Option<serde_json::Value>,
     limit: Option<i64>,
     skip: Option<u64>,
-    sort: Option<mongodb::bson::Document>,
+    sort: Option<serde_json::Value>,
     max_time_ms: Option<u64>,
 }
 impl FindQuery {
@@ -285,7 +285,7 @@ impl FindQuery {
     fn to_find_options(&self) -> mongodb::options::FindOptions {
         let mut options = mongodb::options::FindOptions::default();
         if let Some(projection) = &self.projection {
-            options.projection = Some(projection.clone());
+            options.projection = Some(json_to_document(projection));
         }
         if let Some(limit) = self.limit {
             options.limit = Some(limit);
@@ -294,61 +294,12 @@ impl FindQuery {
             options.skip = Some(skip);
         }
         if let Some(sort) = &self.sort {
-            options.sort = Some(sort.clone());
+            options.sort = Some(json_to_document(sort));
         }
         if let Some(max_time_ms) = self.max_time_ms {
             options.max_time = Some(std::time::Duration::from_millis(max_time_ms));
         }
         options
-    }
-}
-impl ToSchema for FindQuery {
-    fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("FindQuery")
-    }
-}
-impl PartialSchema for FindQuery {
-    fn schema() -> RefOr<Schema> {
-        RefOr::T(Schema::Object(
-            ObjectBuilder::new()
-                .property(
-                    "filter",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "projection",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "limit",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::Integer)
-                            .build(),
-                    )),
-                )
-                .property(
-                    "skip",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::Integer)
-                            .build(),
-                    )),
-                )
-                .property(
-                    "sort",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "max_time_ms",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::Integer)
-                            .build(),
-                    )),
-                )
-                .build(),
-        ))
     }
 }
 
@@ -391,7 +342,7 @@ pub async fn post_catalog_find_query(
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Find documents with the provided filter
-    let filter = body.filter.clone();
+    let filter = json_to_document(&body.filter);
     let find_options = body.to_find_options();
     match collection.find(filter).with_options(find_options).await {
         Ok(cursor) => {
