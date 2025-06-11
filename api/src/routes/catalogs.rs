@@ -121,12 +121,12 @@ impl CountQuery {
     post,
     path = "/catalogs/{catalog_name}/queries/count",
     params(
-        ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'"),
+        ("catalog_name" = String, Path, description = "Name of the catalog, e.g., 'ZTF_alerts'"),
     ),
     request_body = CountQuery,
     responses(
         (status = 200, description = "Count of documents in the catalog", body = serde_json::Value),
-        (status = 400, description = "Bad request"),
+        (status = 404, description = "Catalog does not exist"),
         (status = 500, description = "Internal server error")
     )
 )]
@@ -150,7 +150,7 @@ pub async fn post_catalog_count_query(
     };
     let collection_name = get_collection_name(&catalog_name);
     if !collection_names.contains(&collection_name) {
-        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
+        return HttpResponse::NotFound().into();
     }
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
