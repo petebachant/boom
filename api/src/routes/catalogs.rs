@@ -15,6 +15,25 @@ use utoipa::{PartialSchema, ToSchema};
 /// for analytical data catalogs
 const PROTECTED_COLLECTION_NAMES: [&str; 2] = ["users", "filters"];
 
+/// Check if a catalog exists
+pub async fn catalog_exists(db: &Database, catalog_name: &str) -> bool {
+    if catalog_name.is_empty() {
+        return false; // Empty catalog names are not valid
+    }
+    if PROTECTED_COLLECTION_NAMES.contains(&catalog_name) {
+        return false; // Protected names cannot be used as catalog names
+    }
+    // Get collection names in alphabetical order
+    let collection_names = match db.list_collection_names().await {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    // Convert catalog name to collection name
+    let collection_name = get_collection_name(catalog_name);
+    // Check if the collection exists
+    collection_names.contains(&collection_name)
+}
+
 /// Convert a catalog name to a collection name
 fn get_collection_name(catalog_name: &str) -> String {
     catalog_name.to_string()
@@ -136,22 +155,10 @@ pub async fn post_catalog_count_query(
     catalog_name: web::Path<String>,
     web::Json(query): web::Json<CountQuery>,
 ) -> HttpResponse {
-    // Validate catalog name
-    if catalog_name.is_empty() {
-        return response::bad_request("Catalog name cannot be empty");
-    }
-    let catalog_name = catalog_name.into_inner();
-    // Check that there is a collection with this catalog name
-    let collection_names = match db.list_collection_names().await {
-        Ok(c) => c,
-        Err(e) => {
-            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
-        }
-    };
-    let collection_name = get_collection_name(&catalog_name);
-    if !collection_names.contains(&collection_name) {
+    if !catalog_exists(&db, &catalog_name).await {
         return HttpResponse::NotFound().into();
     }
+    let collection_name = get_collection_name(&catalog_name);
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Count documents with optional filter
@@ -183,22 +190,10 @@ pub async fn get_catalog_indexes(
     db: web::Data<Database>,
     catalog_name: web::Path<String>,
 ) -> HttpResponse {
-    // Validate catalog name
-    if catalog_name.is_empty() {
-        return response::bad_request("Catalog name cannot be empty");
+    if !catalog_exists(&db, &catalog_name).await {
+        return HttpResponse::NotFound().into();
     }
-    let catalog_name = catalog_name.into_inner();
-    // Check that there is a collection with this catalog name
-    let collection_names = match db.list_collection_names().await {
-        Ok(c) => c,
-        Err(e) => {
-            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
-        }
-    };
     let collection_name = get_collection_name(&catalog_name);
-    if !collection_names.contains(&collection_name) {
-        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
-    }
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Get index information
@@ -244,22 +239,10 @@ pub async fn get_catalog_sample(
     catalog_name: web::Path<String>,
     params: web::Query<SampleQuery>,
 ) -> HttpResponse {
-    // Validate catalog name
-    if catalog_name.is_empty() {
-        return response::bad_request("Catalog name cannot be empty");
+    if !catalog_exists(&db, &catalog_name).await {
+        return HttpResponse::NotFound().into();
     }
-    let catalog_name = catalog_name.into_inner();
-    // Check that there is a collection with this catalog name
-    let collection_names = match db.list_collection_names().await {
-        Ok(c) => c,
-        Err(e) => {
-            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
-        }
-    };
     let collection_name = get_collection_name(&catalog_name);
-    if !collection_names.contains(&collection_name) {
-        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
-    }
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Get a sample of documents
@@ -329,22 +312,10 @@ pub async fn post_catalog_find_query(
     catalog_name: web::Path<String>,
     body: web::Json<FindQuery>,
 ) -> HttpResponse {
-    // Validate catalog name
-    if catalog_name.is_empty() {
-        return response::bad_request("Catalog name cannot be empty");
+    if !catalog_exists(&db, &catalog_name).await {
+        return HttpResponse::NotFound().into();
     }
-    let catalog_name = catalog_name.into_inner();
-    // Check that there is a collection with this catalog name
-    let collection_names = match db.list_collection_names().await {
-        Ok(c) => c,
-        Err(e) => {
-            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
-        }
-    };
     let collection_name = get_collection_name(&catalog_name);
-    if !collection_names.contains(&collection_name) {
-        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
-    }
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Find documents with the provided filter
@@ -460,22 +431,10 @@ pub async fn post_catalog_cone_search_query(
     catalog_name: web::Path<String>,
     body: web::Json<ConeSearchQuery>,
 ) -> HttpResponse {
-    // Validate catalog name
-    if catalog_name.is_empty() {
-        return response::bad_request("Catalog name cannot be empty");
+    if !catalog_exists(&db, &catalog_name).await {
+        return HttpResponse::NotFound().into();
     }
-    let catalog_name = catalog_name.into_inner();
-    // Check that there is a collection with this catalog name
-    let collection_names = match db.list_collection_names().await {
-        Ok(c) => c,
-        Err(e) => {
-            return response::internal_error(&format!("Error getting catalog info: {:?}", e));
-        }
-    };
     let collection_name = get_collection_name(&catalog_name);
-    if !collection_names.contains(&collection_name) {
-        return response::bad_request(&format!("Catalog '{}' does not exist", catalog_name));
-    }
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Perform cone search over each set of object coordinates
