@@ -104,7 +104,16 @@ pub async fn get_catalogs(
 
 #[derive(serde::Deserialize, Clone, ToSchema)]
 struct CountQuery {
-    filter: Option<serde_json::Value>,
+    filter: Option<serde_json::Map<String, serde_json::Value>>,
+}
+impl CountQuery {
+    /// Convert filter to MongoDB Document
+    fn get_filter(&self) -> mongodb::bson::Document {
+        match &self.filter {
+            Some(f) => mongodb::bson::to_document(f).unwrap_or_default(),
+            None => mongodb::bson::Document::new(),
+        }
+    }
 }
 
 /// Run a count query on a catalog
@@ -146,10 +155,7 @@ pub async fn post_catalog_count_query(
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Count documents with optional filter
-    let count = match collection
-        .count_documents(json_to_document(&query.filter.unwrap_or_default()))
-        .await
-    {
+    let count = match collection.count_documents(query.get_filter()).await {
         Ok(c) => c,
         Err(e) => {
             return response::internal_error(&format!("Error counting documents: {:?}", e));
