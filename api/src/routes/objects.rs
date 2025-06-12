@@ -25,13 +25,13 @@ struct MostRecentAlertResponse {
     data: MostRecentAlert,
 }
 
-/// Fetch the most recent alert for a given object ID in a specified survey
+/// Fetch the most recent alert for a given object in a specified survey
 #[utoipa::path(
     get,
-    path = "/alerts/{survey_name}/by-object/{object_id}",
+    path = "/objects/{object_id}/alerts/latest-by-survey/{survey_name}",
     params(
+        ("object_id" = String, Path, description = "ID of the object to retrieve"),
         ("survey_name" = String, Path, description = "Name of the survey (e.g., 'ZTF')"),
-        ("object_id" = String, Path, description = "ID of the object to retrieve")
     ),
     responses(
         (status = 200, description = "Object found", body = MostRecentAlertResponse),
@@ -39,12 +39,12 @@ struct MostRecentAlertResponse {
         (status = 500, description = "Internal server error")
     )
 )]
-#[get("/alerts/{survey_name}/by-object/{object_id}")]
-pub async fn get_object(
+#[get("/objects/{object_id}/alerts/latest-by-survey/{survey_name}")]
+pub async fn get_latest_alert_for_object(
     db: web::Data<Database>,
     path: web::Path<(String, String)>,
 ) -> HttpResponse {
-    let (survey_name, object_id) = path.into_inner();
+    let (object_id, survey_name) = path.into_inner();
     let survey_name = survey_name.to_uppercase(); // (TEMP) to match with "ZTF"
     let alerts_collection: Collection<Document> = db.collection(&format!("{}_alerts", survey_name));
     let aux_collection: Collection<Document> =
