@@ -28,14 +28,9 @@ pub async fn catalog_exists(db: &Database, catalog_name: &str) -> bool {
         Err(_) => return false,
     };
     // Convert catalog name to collection name
-    let collection_name = get_collection_name(catalog_name);
+    let collection_name = catalog_name.to_string();
     // Check if the collection exists
     collection_names.contains(&collection_name)
-}
-
-/// Convert a catalog name to a collection name
-fn get_collection_name(catalog_name: &str) -> String {
-    catalog_name.to_string()
 }
 
 #[derive(serde::Deserialize)]
@@ -86,7 +81,7 @@ pub async fn get_catalogs(
         for catalog in catalog_names {
             match db
                 .run_command(doc! {
-                    "collstats": get_collection_name(&catalog)
+                    "collstats": &catalog
                 })
                 .await
             {
@@ -151,7 +146,7 @@ pub async fn post_catalog_count_query(
     if !catalog_exists(&db, &catalog_name).await {
         return HttpResponse::NotFound().into();
     }
-    let collection_name = get_collection_name(&catalog_name);
+    let collection_name = catalog_name.to_string();
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Count documents with optional filter
@@ -186,7 +181,7 @@ pub async fn get_catalog_indexes(
     if !catalog_exists(&db, &catalog_name).await {
         return HttpResponse::NotFound().into();
     }
-    let collection_name = get_collection_name(&catalog_name);
+    let collection_name = catalog_name.to_string();
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Get index information
@@ -235,7 +230,7 @@ pub async fn get_catalog_sample(
     if !catalog_exists(&db, &catalog_name).await {
         return HttpResponse::NotFound().into();
     }
-    let collection_name = get_collection_name(&catalog_name);
+    let collection_name = catalog_name.to_string();
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Get a sample of documents
@@ -308,7 +303,7 @@ pub async fn post_catalog_find_query(
     if !catalog_exists(&db, &catalog_name).await {
         return HttpResponse::NotFound().into();
     }
-    let collection_name = get_collection_name(&catalog_name);
+    let collection_name = catalog_name.to_string();
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Find documents with the provided filter
@@ -427,7 +422,7 @@ pub async fn post_catalog_cone_search_query(
     if !catalog_exists(&db, &catalog_name).await {
         return HttpResponse::NotFound().into();
     }
-    let collection_name = get_collection_name(&catalog_name);
+    let collection_name = catalog_name.to_string();
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Perform cone search over each set of object coordinates
