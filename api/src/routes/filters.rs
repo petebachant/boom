@@ -160,7 +160,6 @@ fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb:
     let pipeline_id = Uuid::new_v4().to_string(); // generate random pipeline id
     let database_filter_bson = doc! {
         "_id": id,
-        "group_id": 41, // consistent with other test filters
         "id": filter.id,
         "catalog": filter.catalog,
         "permissions": filter.permissions,
