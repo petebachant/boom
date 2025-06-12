@@ -40,13 +40,11 @@ fn get_collection_name(catalog_name: &str) -> String {
 
 #[derive(serde::Deserialize)]
 struct CatalogsQueryParams {
-    get_details: Option<bool>,
+    get_details: bool,
 }
 impl Default for CatalogsQueryParams {
     fn default() -> Self {
-        CatalogsQueryParams {
-            get_details: Some(false),
-        }
+        CatalogsQueryParams { get_details: false }
     }
 }
 
@@ -65,7 +63,7 @@ impl Default for CatalogsQueryParams {
 #[get("/catalogs")]
 pub async fn get_catalogs(
     db: web::Data<Database>,
-    params: web::Query<CatalogsQueryParams>,
+    params: Option<web::Query<CatalogsQueryParams>>,
 ) -> HttpResponse {
     // Get collection names in alphabetical order
     let collection_names = match db.list_collection_names().await {
@@ -83,7 +81,8 @@ pub async fn get_catalogs(
         .collect::<Vec<String>>();
     catalog_names.sort();
     let mut catalogs = Vec::new();
-    if params.get_details.unwrap_or_default() {
+    let params = params.map(|p| p.into_inner()).unwrap_or_default();
+    if params.get_details {
         for catalog in catalog_names {
             match db
                 .run_command(doc! {
