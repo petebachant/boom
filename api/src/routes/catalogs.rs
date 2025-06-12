@@ -75,17 +75,12 @@ pub async fn get_catalogs(
         }
     };
     // Catalogs can't be part of the protected names and can't start with "system."
-    let collection_names = collection_names
+    let mut catalog_names = collection_names
         .into_iter()
         .filter(|name| {
             !PROTECTED_COLLECTION_NAMES.contains(&name.as_str()) && !name.starts_with("system.")
         })
         .collect::<Vec<String>>();
-    // Remove the prefix to get the catalog names
-    let mut catalog_names: Vec<String> = collection_names
-        .iter()
-        .map(|name| name.trim_start_matches("catalog_").to_string())
-        .collect();
     catalog_names.sort();
     let mut catalogs = Vec::new();
     if params.get_details.unwrap_or_default() {
