@@ -1,5 +1,4 @@
 use crate::models::response;
-use crate::mongodb::json_to_document;
 
 use actix_web::{HttpResponse, get, post, web};
 use futures::StreamExt;
@@ -274,7 +273,7 @@ impl FindQuery {
     fn to_find_options(&self) -> mongodb::options::FindOptions {
         let mut options = mongodb::options::FindOptions::default();
         if let Some(projection) = &self.projection {
-            options.projection = Some(json_to_document(projection));
+            options.projection = Some(mongodb::bson::to_document(projection).unwrap());
         }
         if let Some(limit) = self.limit {
             options.limit = Some(limit);
@@ -283,7 +282,7 @@ impl FindQuery {
             options.skip = Some(skip);
         }
         if let Some(sort) = &self.sort {
-            options.sort = Some(json_to_document(sort));
+            options.sort = Some(mongodb::bson::to_document(sort).unwrap());
         }
         if let Some(max_time_ms) = self.max_time_ms {
             options.max_time = Some(std::time::Duration::from_millis(max_time_ms));
@@ -319,7 +318,7 @@ pub async fn post_catalog_find_query(
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Find documents with the provided filter
-    let filter = json_to_document(&body.filter);
+    let filter = mongodb::bson::to_document(&body.filter).unwrap();
     let find_options = body.to_find_options();
     match collection.find(filter).with_options(find_options).await {
         Ok(cursor) => {
@@ -393,7 +392,7 @@ impl ConeSearchQuery {
     fn to_find_options(&self) -> mongodb::options::FindOptions {
         let mut options = mongodb::options::FindOptions::default();
         if let Some(projection) = &self.projection {
-            options.projection = Some(json_to_document(&projection));
+            options.projection = Some(mongodb::bson::to_document(&projection).unwrap());
         }
         if let Some(limit) = self.limit {
             options.limit = Some(limit);
@@ -402,7 +401,7 @@ impl ConeSearchQuery {
             options.skip = Some(skip);
         }
         if let Some(sort) = &self.sort {
-            options.sort = Some(json_to_document(&sort));
+            options.sort = Some(mongodb::bson::to_document(&sort).unwrap());
         }
         if let Some(max_time_ms) = self.max_time_ms {
             options.max_time = Some(std::time::Duration::from_millis(max_time_ms));
@@ -451,7 +450,7 @@ pub async fn post_catalog_cone_search_query(
     let object_coordinates = &body.object_coordinates;
     let mut docs: HashMap<String, Vec<mongodb::bson::Document>> = HashMap::new();
     for (object_name, radec) in object_coordinates {
-        let mut filter = json_to_document(&body.filter);
+        let mut filter = mongodb::bson::to_document(&body.filter).unwrap();
         let ra = radec[0] - 180.0;
         let dec = radec[1];
         let center_sphere = doc! {
