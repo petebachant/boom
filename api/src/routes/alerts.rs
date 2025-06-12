@@ -5,21 +5,41 @@ use mongodb::{
     Collection, Database,
     bson::{Document, doc},
 };
+use utoipa::ToSchema;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+struct MostRecentAlert {
+    object_id: String,
+    alert_metadata: serde_json::Value,
+    cutout_science: serde_json::Value,
+    cutout_template: serde_json::Value,
+    cutout_difference: serde_json::Value,
+    prv_candidates: Vec<serde_json::Value>,
+    cross_matches: serde_json::Value,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+struct MostRecentAlertResponse {
+    status: String,
+    message: String,
+    data: MostRecentAlert,
+}
+
+/// Fetch the most recent alert for a given object ID in a specified survey
 #[utoipa::path(
     get,
-    path = "/alerts/{survey_name}/get_object/{object_id}",
+    path = "/alerts/{survey_name}/by-object/{object_id}",
     params(
         ("survey_name" = String, Path, description = "Name of the survey (e.g., 'ZTF')"),
         ("object_id" = String, Path, description = "ID of the object to retrieve")
     ),
     responses(
-        (status = 200, description = "Object found", body = serde_json::Value),
+        (status = 200, description = "Object found", body = MostRecentAlertResponse),
         (status = 404, description = "Object not found"),
         (status = 500, description = "Internal server error")
     )
 )]
-#[get("/alerts/{survey_name}/get_object/{object_id}")]
+#[get("/alerts/{survey_name}/by-object/{object_id}")]
 pub async fn get_object(
     db: web::Data<Database>,
     path: web::Path<(String, String)>,
@@ -29,7 +49,7 @@ pub async fn get_object(
     let alerts_collection: Collection<Document> = db.collection(&format!("{}_alerts", survey_name));
     let aux_collection: Collection<Document> =
         db.collection(&format!("{}_alerts_aux", survey_name));
-    // find options for getting most recent alert from alerts collection
+    // Find options for getting most recent alert from alerts collection
     let find_options_recent = mongodb::options::FindOptions::builder()
         .sort(doc! {
             "candidate.jd": -1,
@@ -44,7 +64,7 @@ pub async fn get_object(
         .limit(1)
         .build();
 
-    // get the most recent alert for the object
+    // Get the most recent alert for the object
     let mut alert_cursor = match alerts_collection
         .find(doc! {
             "objectId": object_id.clone(),
@@ -78,7 +98,7 @@ pub async fn get_object(
         })
         .build();
 
-    // get crossmatches and light curve data from aux collection
+    // Get crossmatches and light curve data from aux collection
     let aux_entry = match aux_collection
         .find_one(doc! {
             "_id": object_id.clone(),
@@ -97,36 +117,40 @@ pub async fn get_object(
         }
     };
 
-    let mut candidate = doc! {};
-    // organize response
-    candidate.insert("objectId", object_id.clone());
-    candidate.insert(
-        "alert_metadata",
-        newest_alert.get_document("candidate").unwrap(),
-    );
-    candidate.insert(
-        "cutoutScience",
-        newest_alert.get_document("cutoutScience").unwrap(),
-    );
-    candidate.insert(
-        "cutoutTemplate",
-        newest_alert.get_document("cutoutTemplate").unwrap(),
-    );
-    candidate.insert(
-        "cutoutDifference",
-        newest_alert.get_document("cutoutDifference").unwrap(),
-    );
-    candidate.insert(
-        "prv_candidates",
-        aux_entry.get_array("prv_candidates").unwrap(),
-    );
-    candidate.insert(
-        "cross_matches",
-        aux_entry.get_document("cross_matches").unwrap(),
-    );
-
+    // Prepare the response
+    // Convert prv_candidates into an array of JSON values
+    let empty_vec = Vec::new();
+    let prv_candidates = aux_entry.get_array("prv_candidates").unwrap_or(&empty_vec);
+    let prv_candidates: Vec<serde_json::Value> = prv_candidates
+        .iter()
+        .map(|doc| serde_json::json!(doc.clone()))
+        .collect();
+    let resp = MostRecentAlert {
+        object_id: object_id.clone(),
+        alert_metadata: serde_json::json!(newest_alert.get_document("candidate").unwrap().clone()),
+        cutout_science: serde_json::json!(
+            newest_alert
+                .get_document("cutoutScience")
+                .unwrap_or(&doc! {})
+                .clone()
+        ),
+        cutout_template: serde_json::json!(
+            newest_alert
+                .get_document("cutoutTemplate")
+                .unwrap_or(&doc! {})
+                .clone()
+        ),
+        cutout_difference: serde_json::json!(
+            newest_alert
+                .get_document("cutoutDifference")
+                .unwrap_or(&doc! {})
+                .clone()
+        ),
+        prv_candidates: prv_candidates,
+        cross_matches: serde_json::json!(aux_entry.get_document("cross_matches").unwrap().clone()),
+    };
     return response::ok(
         &format!("object found with object_id: {}", object_id),
-        serde_json::json!(candidate),
+        serde_json::json!(resp),
     );
 }
