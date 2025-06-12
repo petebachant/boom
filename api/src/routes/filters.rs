@@ -1,4 +1,4 @@
-use crate::models::{filter_models::*, response};
+use crate::models::response;
 
 use actix_web::{HttpResponse, patch, post, web};
 use mongodb::{
@@ -6,54 +6,22 @@ use mongodb::{
     bson::{Document, doc},
 };
 use std::vec;
-use utoipa::openapi::RefOr;
-use utoipa::openapi::schema::{ObjectBuilder, Schema};
-use utoipa::{PartialSchema, ToSchema};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[derive(serde::Deserialize, Clone, ToSchema)]
+pub struct FilterSubmissionBody {
+    pub pipeline: Option<Vec<serde_json::Value>>,
+    pub permissions: Option<Vec<i32>>,
+    pub catalog: Option<String>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, ToSchema)]
 struct Filter {
-    pub pipeline: Vec<mongodb::bson::Document>,
+    pub pipeline: Vec<serde_json::Value>,
     pub permissions: Vec<i32>,
     pub catalog: String,
     pub id: String,
-}
-impl ToSchema for Filter {
-    fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("Filter")
-    }
-}
-impl PartialSchema for Filter {
-    fn schema() -> RefOr<Schema> {
-        RefOr::T(Schema::Object(
-            ObjectBuilder::new()
-                .property(
-                    "pipeline",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "permissions",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "catalog",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::String)
-                            .build(),
-                    )),
-                )
-                .property(
-                    "id",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::String)
-                            .build(),
-                    )),
-                )
-                .build(),
-        ))
-    }
 }
 
 fn build_test_pipeline(
@@ -152,12 +120,25 @@ async fn run_test_pipeline(
     }
 }
 
-// takes a verified filter and builds the properly formatted bson document for the database
+/// Takes a verified filter and builds the properly formatted bson document for the database
 fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb::error::Error> {
     // generate new object id
     let id = mongodb::bson::oid::ObjectId::new();
     let date_time = mongodb::bson::DateTime::now();
     let pipeline_id = Uuid::new_v4().to_string(); // generate random pipeline id
+    // Convert the filter pipeline from JSON into a vector of BSON Documents
+    let pipeline: Vec<mongodb::bson::Document> = filter
+        .pipeline
+        .into_iter()
+        .map(|v| {
+            mongodb::bson::to_document(&v).map_err(|e| {
+                mongodb::error::Error::from(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("Failed to convert pipeline step to BSON Document: {}", e),
+                ))
+            })
+        })
+        .collect::<Result<_, _>>()?;
     let database_filter_bson = doc! {
         "_id": id,
         "id": filter.id,
@@ -168,7 +149,7 @@ fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb:
         "fv": [
             {
                 "fid": pipeline_id,
-                "pipeline": filter.pipeline,
+                "pipeline": pipeline,
                 "created_at": date_time,
             }
         ],
@@ -180,10 +161,16 @@ fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb:
     Ok(database_filter_bson)
 }
 
+#[derive(serde::Deserialize, Clone, ToSchema)]
+struct FilterPipelinePatch {
+    pipeline: Vec<serde_json::Value>,
+}
+
+/// Add a new version to an existing filter
 #[utoipa::path(
     patch,
     path = "/filters/{filter_id}",
-    request_body = FilterSubmissionBody,
+    request_body = FilterPipelinePatch,
     responses(
         (status = 200, description = "Filter version added successfully"),
         (status = 400, description = "Invalid filter submitted"),
@@ -194,16 +181,9 @@ fn build_filter_bson(filter: Filter) -> Result<mongodb::bson::Document, mongodb:
 pub async fn add_filter_version(
     db: web::Data<Database>,
     filter_id: web::Path<String>,
-    body: web::Json<FilterSubmissionBody>,
+    body: web::Json<FilterPipelinePatch>,
 ) -> HttpResponse {
     let filter_id = filter_id.into_inner();
-    let pipeline = match body.clone().pipeline {
-        Some(pipeline) => pipeline,
-        None => {
-            return HttpResponse::BadRequest()
-                .body("pipeline not provided. pipeline required for adding a filter version");
-        }
-    };
     let collection: Collection<Document> = db.collection("filters");
     let owner_filter = match collection.find_one(doc! {"id": filter_id.clone()}).await {
         Ok(Some(filter)) => filter,
@@ -224,7 +204,21 @@ pub async fn add_filter_version(
         .iter()
         .map(|perm| perm.as_i32().unwrap())
         .collect();
-    // create test version of filter and test it
+    // Create test version of filter and test it
+    // Convert pipeline from JSON to an array of Documents
+    let pipeline = body.pipeline.clone();
+    let pipeline: Vec<mongodb::bson::Document> = pipeline
+        .into_iter()
+        .map(|v| {
+            mongodb::bson::to_document(&v).map_err(|e| {
+                HttpResponse::BadRequest().body(format!(
+                    "Failed to convert pipeline step to BSON Document: {}",
+                    e
+                ))
+            })
+        })
+        .collect::<Result<_, _>>()
+        .unwrap();
     let test_pipeline = build_test_pipeline(catalog.to_string(), permissions, pipeline.clone());
 
     match run_test_pipeline(db.clone(), catalog.to_string(), test_pipeline).await {
@@ -270,42 +264,14 @@ pub async fn add_filter_version(
     }
 }
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(serde::Deserialize, Clone, ToSchema)]
 pub struct FilterPost {
-    pub pipeline: Vec<mongodb::bson::Document>,
+    pub pipeline: Vec<serde_json::Value>,
     pub permissions: Vec<i32>,
     pub catalog: String,
 }
-impl ToSchema for FilterPost {
-    fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("FilterPost")
-    }
-}
-impl PartialSchema for FilterPost {
-    fn schema() -> RefOr<Schema> {
-        RefOr::T(Schema::Object(
-            ObjectBuilder::new()
-                .property(
-                    "pipeline",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "permissions",
-                    RefOr::T(Schema::Object(ObjectBuilder::new().build())),
-                )
-                .property(
-                    "catalog",
-                    RefOr::T(Schema::Object(
-                        ObjectBuilder::new()
-                            .schema_type(utoipa::openapi::Type::String)
-                            .build(),
-                    )),
-                )
-                .build(),
-        ))
-    }
-}
 
+/// Create a new filter
 #[utoipa::path(
     post,
     path = "/filters",
@@ -326,7 +292,21 @@ pub async fn post_filter(db: web::Data<Database>, body: web::Json<FilterPost>) -
 
     // Test filter received from user
     // Create production version of filter
-    let test_pipeline = build_test_pipeline(catalog.clone(), permissions.clone(), pipeline.clone());
+    let pipeline_bson: Vec<Document> = pipeline
+        .clone()
+        .into_iter()
+        .map(|v| {
+            mongodb::bson::to_document(&v).map_err(|e| {
+                HttpResponse::BadRequest().body(format!(
+                    "Failed to convert pipeline step to BSON Document: {}",
+                    e
+                ))
+            })
+        })
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let test_pipeline =
+        build_test_pipeline(catalog.clone(), permissions.clone(), pipeline_bson.clone());
 
     // Test the filter to ensure it works
     match run_test_pipeline(db.clone(), catalog.clone(), test_pipeline).await {
