@@ -1,4 +1,7 @@
-use crate::models::response;
+use crate::{
+    bodies::{parse_filter, parse_optional_filter},
+    models::response,
+};
 
 use actix_web::{HttpResponse, get, post, web};
 use futures::StreamExt;
@@ -144,7 +147,7 @@ pub async fn post_catalog_count_query(
     web::Json(query): web::Json<CountQuery>,
 ) -> HttpResponse {
     if !catalog_exists(&db, &catalog_name).await {
-        return HttpResponse::NotFound().into();
+        return response::not_found(&format!("Catalog {} does not exist", catalog_name));
     }
     let collection_name = catalog_name.to_string();
     // Get the collection
@@ -179,7 +182,7 @@ pub async fn get_catalog_indexes(
     catalog_name: web::Path<String>,
 ) -> HttpResponse {
     if !catalog_exists(&db, &catalog_name).await {
-        return HttpResponse::NotFound().into();
+        return response::not_found(&format!("Catalog {} does not exist", catalog_name));
     }
     let collection_name = catalog_name.to_string();
     // Get the collection
@@ -228,16 +231,20 @@ pub async fn get_catalog_sample(
     params: web::Query<SampleQuery>,
 ) -> HttpResponse {
     if !catalog_exists(&db, &catalog_name).await {
-        return HttpResponse::NotFound().into();
+        return response::not_found(&format!("Catalog {} does not exist", catalog_name));
     }
     let collection_name = catalog_name.to_string();
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
+
+    let size = params.size.unwrap_or(1) as i32;
+    if size <= 0 || size > 1000 {
+        return response::bad_request("Size must be between 1 and 1000");
+    }
+
     // Get a sample of documents
     match collection
-        .aggregate(vec![
-            doc! { "$sample": { "size": params.size.unwrap_or_default() as i32 } },
-        ])
+        .aggregate(vec![doc! { "$sample": { "size": size } }])
         .await
     {
         Ok(cursor) => {
@@ -283,7 +290,7 @@ impl FindQuery {
 /// Perform a find query on a catalog
 #[utoipa::path(
     post,
-    path = "/catalogs/{catalog_name}/queries/find",
+    path = "/catalogs/{catalog_name}/find",
     params(
         ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'")
     ),
@@ -294,20 +301,23 @@ impl FindQuery {
         (status = 500, description = "Internal server error")
     )
 )]
-#[post("/catalogs/{catalog_name}/queries/find")]
+#[post("/catalogs/{catalog_name}/find")]
 pub async fn post_catalog_find_query(
     db: web::Data<Database>,
     catalog_name: web::Path<String>,
     body: web::Json<FindQuery>,
 ) -> HttpResponse {
     if !catalog_exists(&db, &catalog_name).await {
-        return HttpResponse::NotFound().into();
+        return response::not_found(&format!("Catalog {} does not exist", catalog_name));
     }
     let collection_name = catalog_name.to_string();
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Find documents with the provided filter
-    let filter = mongodb::bson::to_document(&body.filter).unwrap();
+    let filter = match parse_filter(&body.filter) {
+        Ok(filter) => filter,
+        Err(e) => return response::bad_request(&format!("Invalid filter: {:?}", e)),
+    };
     let find_options = body.to_find_options();
     match collection.find(filter).with_options(find_options).await {
         Ok(cursor) => {
@@ -366,7 +376,7 @@ impl PartialSchema for Unit {
 
 #[derive(serde::Deserialize, Clone, ToSchema)]
 struct ConeSearchQuery {
-    filter: serde_json::Value,
+    filter: Option<serde_json::Value>,
     projection: Option<serde_json::Value>,
     radius: f64,
     unit: Unit,
@@ -402,7 +412,7 @@ impl ConeSearchQuery {
 /// Perform a cone search query on a catalog
 #[utoipa::path(
     post,
-    path = "/catalogs/{catalog_name}/queries/cone-search",
+    path = "/catalogs/{catalog_name}/cone-search",
     params(
         ("catalog_name" = String, Path, description = "Name of the catalog (case insensitive), e.g., 'ztf'")
     ),
@@ -413,14 +423,14 @@ impl ConeSearchQuery {
         (status = 500, description = "Internal server error")
     )
 )]
-#[post("/catalogs/{catalog_name}/queries/cone-search")]
+#[post("/catalogs/{catalog_name}/cone-search")]
 pub async fn post_catalog_cone_search_query(
     db: web::Data<Database>,
     catalog_name: web::Path<String>,
     body: web::Json<ConeSearchQuery>,
 ) -> HttpResponse {
     if !catalog_exists(&db, &catalog_name).await {
-        return HttpResponse::NotFound().into();
+        return response::not_found(&format!("Catalog {} does not exist", catalog_name));
     }
     let collection_name = catalog_name.to_string();
     // Get the collection
@@ -438,8 +448,11 @@ pub async fn post_catalog_cone_search_query(
     }
     let object_coordinates = &body.object_coordinates;
     let mut docs: HashMap<String, Vec<mongodb::bson::Document>> = HashMap::new();
+    let filter = match parse_optional_filter(&body.filter) {
+        Ok(f) => f,
+        Err(e) => return response::bad_request(&format!("Invalid filter: {:?}", e)),
+    };
     for (object_name, radec) in object_coordinates {
-        let mut filter = mongodb::bson::to_document(&body.filter).unwrap();
         let ra = radec[0] - 180.0;
         let dec = radec[1];
         let center_sphere = doc! {
@@ -448,9 +461,10 @@ pub async fn post_catalog_cone_search_query(
         let geo_within = doc! {
             "$geoWithin": center_sphere
         };
-        filter.insert("coordinates.radec_geojson", geo_within);
+        let mut conesearch_filter = filter.clone();
+        conesearch_filter.insert("coordinates.radec_geojson", geo_within);
         let cursor = match collection
-            .find(filter)
+            .find(conesearch_filter)
             .with_options(find_options.clone())
             .await
         {
