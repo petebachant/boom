@@ -114,22 +114,13 @@ pub async fn get_catalogs(
 
 #[derive(serde::Deserialize, Clone, ToSchema)]
 struct CountQuery {
-    filter: Option<serde_json::Map<String, serde_json::Value>>,
-}
-impl CountQuery {
-    /// Convert filter to MongoDB Document
-    fn get_filter(&self) -> mongodb::bson::Document {
-        match &self.filter {
-            Some(f) => mongodb::bson::to_document(f).unwrap_or_default(),
-            None => mongodb::bson::Document::new(),
-        }
-    }
+    filter: Option<serde_json::Value>,
 }
 
 /// Run a count query on a catalog
 #[utoipa::path(
     post,
-    path = "/catalogs/{catalog_name}/queries/count",
+    path = "/catalogs/{catalog_name}/count",
     params(
         ("catalog_name" = String, Path, description = "Name of the catalog, e.g., 'ZTF_alerts'"),
     ),
@@ -140,7 +131,7 @@ impl CountQuery {
         (status = 500, description = "Internal server error")
     )
 )]
-#[post("/catalogs/{catalog_name}/queries/count")]
+#[post("/catalogs/{catalog_name}/count")]
 pub async fn post_catalog_count_query(
     db: web::Data<Database>,
     catalog_name: web::Path<String>,
@@ -153,7 +144,11 @@ pub async fn post_catalog_count_query(
     // Get the collection
     let collection = db.collection::<mongodb::bson::Document>(&collection_name);
     // Count documents with optional filter
-    let count = match collection.count_documents(query.get_filter()).await {
+    let filter = match parse_optional_filter(&query.filter) {
+        Ok(f) => f,
+        Err(e) => return response::bad_request(&format!("Invalid filter: {:?}", e)),
+    };
+    let count = match collection.count_documents(filter).await {
         Ok(c) => c,
         Err(e) => {
             return response::internal_error(&format!("Error counting documents: {:?}", e));
@@ -251,7 +246,10 @@ pub async fn get_catalog_sample(
             let docs: Vec<_> = cursor.map(|doc| doc.unwrap()).collect::<Vec<_>>().await;
             response::ok("success", serde_json::to_value(docs).unwrap())
         }
-        Err(e) => response::internal_error(&format!("Error getting sample: {:?}", e)),
+        Err(e) => response::internal_error(&format!(
+            "Error getting sample for catalog {}: {:?}",
+            catalog_name, e
+        )),
     }
 }
 
