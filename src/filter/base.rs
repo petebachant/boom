@@ -32,7 +32,7 @@ const ALERT_SCHEMA: &str = r#"
                 "type": "record",
                 "name": "FilterResults",
                 "fields": [
-                    {"name": "filter_id", "type": "int"},
+                    {"name": "filter_id", "type": "string"},
                     {"name": "passed_at", "type": "double"},
                     {"name": "annotations", "type": "string"}
                 ]
@@ -145,7 +145,7 @@ pub struct Classification {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FilterResults {
-    pub filter_id: i32,
+    pub filter_id: String,
     pub passed_at: f64, // timestamp in seconds
     pub annotations: String,
 }
@@ -224,7 +224,7 @@ pub async fn send_alert_to_kafka(
 
 #[instrument(skip(filter_collection), err)]
 pub async fn get_filter_object(
-    filter_id: i32,
+    filter_id: &str,
     catalog: &str,
     filter_collection: &mongodb::Collection<mongodb::bson::Document>,
 ) -> Result<Document, FilterError> {
@@ -232,7 +232,7 @@ pub async fn get_filter_object(
         .aggregate(vec![
             doc! {
                 "$match": doc! {
-                    "filter_id": filter_id,
+                    "id": filter_id,
                     "active": true,
                     "catalog": catalog
                 }
@@ -285,7 +285,7 @@ pub async fn get_filter_object(
 #[instrument(skip(candids, pipeline, alert_collection), err)]
 pub async fn run_filter(
     candids: Vec<i64>,
-    filter_id: i32,
+    filter_id: &str,
     mut pipeline: Vec<Document>,
     alert_collection: &mongodb::Collection<Document>,
 ) -> Result<Vec<Document>, FilterError> {
@@ -319,7 +319,7 @@ pub async fn run_filter(
 #[async_trait::async_trait]
 pub trait Filter {
     async fn build(
-        filter_id: i32,
+        filter_id: &str,
         filter_collection: &mongodb::Collection<mongodb::bson::Document>,
     ) -> Result<Self, FilterError>
     where

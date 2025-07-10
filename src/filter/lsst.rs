@@ -9,7 +9,7 @@ use crate::filter::{
 };
 
 pub struct LsstFilter {
-    id: i32,
+    id: String,
     pipeline: Vec<Document>,
 }
 
@@ -17,7 +17,7 @@ pub struct LsstFilter {
 impl Filter for LsstFilter {
     #[instrument(skip(filter_collection), err)]
     async fn build(
-        filter_id: i32,
+        filter_id: &str,
         filter_collection: &mongodb::Collection<mongodb::bson::Document>,
     ) -> Result<Self, FilterError> {
         // get filter object
@@ -111,7 +111,7 @@ impl Filter for LsstFilter {
         }
 
         let filter = LsstFilter {
-            id: filter_id,
+            id: filter_id.to_string(),
             pipeline: pipeline,
         };
 
@@ -138,17 +138,21 @@ impl FilterWorker for LsstFilterWorker {
         let input_queue = "LSST_alerts_filter_queue".to_string();
         let output_topic = "LSST_alerts_results".to_string();
 
-        let filter_ids: Vec<i32> = filter_collection
-            .distinct("filter_id", doc! {"active": true, "catalog": "LSST_alerts"})
+        // Fetch a list of active filter IDs for this survey's catalog
+        let filter_ids = filter_collection
+            .distinct("id", doc! {"active": true, "catalog": "LSST_alerts"})
             .await?
             .into_iter()
-            .map(|x| x.as_i32().ok_or(FilterError::InvalidFilterId))
-            .filter_map(Result::ok)
-            .collect();
+            .map(|x| {
+                x.as_str()
+                    .map(|s| s.to_string())
+                    .ok_or(FilterError::InvalidFilterId)
+            })
+            .collect::<Result<Vec<String>, FilterError>>()?;
 
         let mut filters: Vec<LsstFilter> = Vec::new();
         for filter_id in filter_ids {
-            filters.push(LsstFilter::build(filter_id, &filter_collection).await?);
+            filters.push(LsstFilter::build(&filter_id, &filter_collection).await?);
         }
 
         Ok(LsstFilterWorker {
@@ -355,7 +359,7 @@ impl FilterWorker for LsstFilterWorker {
         for filter in &self.filters {
             let out_documents = run_filter(
                 candids.clone(),
-                filter.id,
+                &filter.id,
                 filter.pipeline.clone(),
                 &self.alert_collection,
             )
@@ -382,7 +386,7 @@ impl FilterWorker for LsstFilterWorker {
                 let annotations =
                     serde_json::to_string(doc.get_document("annotations").unwrap_or(&doc! {}))?;
                 let filter_result = FilterResults {
-                    filter_id: filter.id,
+                    filter_id: filter.id.to_string(),
                     passed_at: now_ts,
                     annotations,
                 };
