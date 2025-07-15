@@ -442,12 +442,23 @@ impl FilterWorker for ZtfFilterWorker {
             }
         }
 
-        // for each programid, get the filters that have that programid in their permissions
-        // and run the filters
+        // For each programid, get the filters that have that programid in their
+        // permissions and run the filters
         for (programid, candids) in alerts_by_programid {
             let mut results_map: HashMap<i64, Vec<FilterResults>> = HashMap::new();
 
+            let filter_ids_with_perms = self
+                .filters_by_permission
+                .get(&programid)
+                .ok_or(FilterWorkerError::GetFilterByQueueError)?;
+
             for filter in &self.filters {
+                // If the filter ID is not in the list of filter IDs for this
+                // programid, skip it
+                if !filter_ids_with_perms.contains(&filter.id) {
+                    continue;
+                }
+
                 let out_documents = run_filter(
                     candids.clone(),
                     &filter.id,
