@@ -24,6 +24,26 @@ pub struct User {
     pub is_admin: bool,   // Indicates if the user is an admin
 }
 
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
+pub struct UserPublic {
+    #[serde(rename(serialize = "id", deserialize = "_id"))]
+    pub id: String,
+    pub username: String,
+    pub email: String,
+    pub is_admin: bool,
+}
+
+impl From<User> for UserPublic {
+    fn from(user: User) -> Self {
+        Self {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            is_admin: user.is_admin,
+        }
+    }
+}
+
 /// Add a new user (admin only)
 #[utoipa::path(
     post,
@@ -66,13 +86,7 @@ pub async fn post_user(
     match user_collection.insert_one(user_insert.clone()).await {
         Ok(_) => response::ok(
             "success",
-            serde_json::to_value(UserPublic {
-                id: user_id,
-                username: user_insert.username.clone(),
-                email: user_insert.email.clone(),
-                is_admin: user_insert.is_admin,
-            })
-            .unwrap(),
+            serde_json::to_value(UserPublic::from(user_insert)).unwrap(),
         ),
         // Catch unique index constraint error
         Err(e) if e.to_string().contains("E11000 duplicate key error") => HttpResponse::Conflict()
@@ -84,15 +98,6 @@ pub async fn post_user(
         Err(e) => HttpResponse::InternalServerError()
             .body(format!("failed to insert user into database. error: {}", e)),
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, ToSchema)]
-pub struct UserPublic {
-    #[serde(rename(serialize = "id", deserialize = "_id"))]
-    pub id: String,
-    pub username: String,
-    pub email: String,
-    pub is_admin: bool,
 }
 
 /// Get a list of users
