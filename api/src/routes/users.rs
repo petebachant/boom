@@ -105,7 +105,7 @@ pub async fn post_user(
     get,
     path = "/users",
     responses(
-        (status = 200, description = "Users retrieved successfully", body = [User]),
+        (status = 200, description = "Users retrieved successfully", body = [UserPublic]),
         (status = 500, description = "Internal server error")
     ),
     tags=["Users"]
